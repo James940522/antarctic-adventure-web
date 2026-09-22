@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/game/input/*.test.ts src/game/entities/*.test.ts"
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/game/input/*.test.ts src/game/entities/*.test.ts src/game/systems/*.test.ts"
   },
   "dependencies": {
     "next": "16.3.5",

@@ -3,7 +3,9 @@
 import type { Game } from "phaser";
 import { useEffect, useRef, useState } from "react";
 
-import { GAME_SIZE } from "@/game/config/constants";
+import { GAME_EVENTS, GAME_SIZE } from "@/game/config/constants";
+import { GameHud } from "@/components/game/GameHud";
+import type { RunSnapshot } from "@/game/systems/RunSystem";
 
 type LoadStatus = "loading" | "ready" | "error";
 
@@ -11,6 +13,8 @@ export function GameCanvas() {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputTargetRef = useRef<HTMLElement>(null);
   const teardownRef = useRef<Promise<void>>(Promise.resolve());
+  const gameRef = useRef<Game | undefined>(undefined);
+  const [run, setRun] = useState<RunSnapshot | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [attempt, setAttempt] = useState(0);
 
@@ -33,6 +37,7 @@ export function GameCanvas() {
       if (!game) return;
       const retiringGame = game;
       game = undefined;
+      if (gameRef.current === retiringGame) gameRef.current = undefined;
 
       // Phaser destroys on its next frame. Wait before creating a replacement.
       teardownRef.current = new Promise<void>((resolve) => {
@@ -68,7 +73,9 @@ export function GameCanvas() {
             if (!cancelled && !failed) setStatus("ready");
           },
           onError,
+          onSnapshot: (snapshot) => { if (!cancelled && !failed && snapshot) setRun(snapshot); },
         }, inputTarget);
+        gameRef.current = game;
       } catch (error) {
         onError(error);
       }
@@ -103,10 +110,16 @@ export function GameCanvas() {
       }}
     >
       <p className="sr-only">
-        게임 화면을 클릭하거나 Tab으로 선택한 뒤 방향키 또는 WASD로 방향과 속도를,
-        Space로 점프를 입력합니다. 게임패드 스틱, 방향 패드와 남쪽 액션 버튼도 사용할 수 있습니다.
+        자동으로 전진합니다. 게임 화면을 클릭하거나 Tab으로 선택한 뒤 좌우 방향키 또는 A D로 이동하고,
+        위아래 방향키 또는 W S를 한 번씩 눌러 1~3단 속도를 바꿉니다. Space로 점프합니다.
+        박스에 닿으면 게임오버이며 이동 거리로 기록을 겨룹니다. 게임패드도 같은 조작을 지원합니다.
       </p>
       <div ref={containerRef} className="absolute inset-0" />
+
+      {status === "ready" && run && <GameHud run={run} onRestart={() => {
+        gameRef.current?.events.emit(GAME_EVENTS.restart);
+        inputTargetRef.current?.focus({ preventScroll: true });
+      }} />}
 
       {status === "loading" && (
         <p

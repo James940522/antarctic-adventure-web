@@ -1,12 +1,15 @@
-import { Scene, Scenes, type GameObjects } from "phaser";
+import { Scene, Scenes } from "phaser";
 
-import { GAME_EVENTS, SCENE_LAYOUT } from "@/game/config/constants";
-import { Player } from "@/game/entities/Player";
+import { GAME_EVENTS, RUN_CONFIG, SCENE_LAYOUT } from "@/game/config/constants";
 import { PlayerView } from "@/game/entities/PlayerView";
 import { KeyboardInput } from "@/game/input/KeyboardInput";
 import { GamepadInput } from "@/game/input/GamepadInput";
 import { InputManager } from "@/game/input/InputManager";
 import { InputDebugOverlay } from "@/game/input/InputDebugOverlay";
+import { RunSystem } from "@/game/systems/RunSystem";
+import { RecordStore } from "@/game/systems/RecordStore";
+import { PerspectiveSystem } from "@/game/systems/PerspectiveSystem";
+import { CourseView } from "@/game/systems/CourseView";
 
 export class GameScene extends Scene {
   static readonly KEY = "GameScene";
@@ -15,10 +18,13 @@ export class GameScene extends Scene {
   private keyboard?: KeyboardInput;
   private gamepad?: GamepadInput;
   private inputDebug?: InputDebugOverlay;
-  private player?: Player;
+  private run?: RunSystem;
+  private records?: RecordStore;
+  private courseView?: CourseView;
   private playerView?: PlayerView;
-  private instructions?: GameObjects.Text;
   private skipNextDelta = true;
+  private nextHudRefresh = 0;
+  private restartAt = 0;
 
   constructor(inputTarget: HTMLElement) {
     super(GameScene.KEY);
@@ -29,37 +35,67 @@ export class GameScene extends Scene {
     try {
       this.setupInput();
       this.drawLandscape();
-      this.player = new Player();
-      this.playerView = new PlayerView(this);
-      this.playerView.render(this.player.state);
-      this.instructions = this.add.text(this.scale.width / 2, this.scale.height - 24, "", {
-        fontFamily: "sans-serif", fontSize: "16px", color: "#34566c",
-      }).setOrigin(0.5);
+      this.records = new RecordStore();
+      this.run = new RunSystem(this.records.value);
+      const projection = new PerspectiveSystem();
+      this.courseView = new CourseView(this, projection);
+      this.playerView = new PlayerView(this, projection);
+      this.playerView.render(this.run.player.state);
+      this.game.events.on(GAME_EVENTS.restart, this.restart, this);
       const debug = new URLSearchParams(window.location.search).get("debugInput");
-      if (debug === "1" || (process.env.NODE_ENV === "development" && debug !== "0")) {
+      if (debug === "1") {
         this.inputDebug = new InputDebugOverlay(this);
       }
       this.game.events.emit(GAME_EVENTS.ready);
+      this.publishSnapshot();
     } catch (error) {
       this.game.events.emit(GAME_EVENTS.error, error);
     }
   }
 
   update(time: number, delta: number): void {
-    if (!this.controls || !this.keyboard || !this.gamepad || !this.player) return;
-    const active = this.keyboard.isActive;
-    const input = this.controls.update(active);
-    if (active) {
-      this.player.update(input, this.skipNextDelta ? 0 : delta);
+    if (!this.controls || !this.keyboard || !this.gamepad || !this.run) return;
+    const inputActive = this.keyboard.isActive;
+    const document = this.inputTarget.ownerDocument;
+    const active = document.visibilityState !== "hidden" && document.hasFocus();
+    const input = this.controls.update(inputActive);
+    if (active && this.run.status === "running") {
+      const ended = this.run.update(input, this.skipNextDelta ? 0 : delta);
       this.skipNextDelta = false;
+      if (ended) {
+        this.records?.save(this.run.bestDistance);
+        this.restartAt = time + 600;
+        this.nextHudRefresh = 0;
+      }
+    } else if (active && this.run.status === "gameover" && input.jumpPressed && time >= this.restartAt) {
+      this.restart();
     } else {
       this.skipNextDelta = true;
     }
-    this.playerView?.render(this.player.state);
-    this.instructions?.setText(active
-      ? "← → 이동 · ↑ ↓ 가감속 · SPACE 점프  /  패드: 왼쪽 스틱 · 남쪽 버튼"
-      : "일시정지 · 화면을 클릭하거나 Tab으로 선택해 출발하세요");
-    this.inputDebug?.update(time, input, active, this.gamepad.status, this.player.state);
+    this.courseView?.render(this.run.player.state.distanceTravelled, this.run.elapsedSeconds, this.run.obstacles.boxes);
+    this.playerView?.render(this.run.player.state);
+    this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state);
+    if (time >= this.nextHudRefresh) {
+      this.nextHudRefresh = time + RUN_CONFIG.hudRefreshMs;
+      this.publishSnapshot();
+    }
+  }
+
+  private publishSnapshot(): void {
+    const document = this.inputTarget.ownerDocument;
+    this.game.events.emit(GAME_EVENTS.snapshot, this.run?.snapshot(
+      document.visibilityState === "hidden" || !document.hasFocus(), this.keyboard?.isActive ?? false,
+    ));
+  }
+
+  private restart(): void {
+    if (!this.run || this.run.status !== "gameover") return;
+    this.run.restart();
+    this.controls?.reset();
+    this.courseView?.reset();
+    this.skipNextDelta = true;
+    this.nextHudRefresh = 0;
+    this.publishSnapshot();
   }
 
   private setupInput(): void {
@@ -79,19 +115,22 @@ export class GameScene extends Scene {
       this.skipNextDelta = true;
     };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") reset();
+      if (document.visibilityState === "hidden") { reset(); this.publishSnapshot(); }
     };
+    const onWindowBlur = () => { reset(); this.publishSnapshot(); };
     this.inputTarget.addEventListener("blur", reset);
-    window?.addEventListener("blur", reset);
+    window?.addEventListener("blur", onWindowBlur);
     document.addEventListener("visibilitychange", onVisibility);
 
     const cleanup = () => {
       this.inputTarget.removeEventListener("blur", reset);
-      window?.removeEventListener("blur", reset);
+      window?.removeEventListener("blur", onWindowBlur);
       document.removeEventListener("visibilitychange", onVisibility);
       controls.destroy();
+      this.game.events.off(GAME_EVENTS.restart, this.restart, this);
+      this.courseView?.reset();
       this.controls = this.keyboard = this.gamepad = this.inputDebug = undefined;
-      this.player = this.playerView = this.instructions = undefined;
+      this.run = this.playerView = this.courseView = this.records = undefined;
       this.skipNextDelta = true;
       this.events.off(Scenes.Events.SHUTDOWN, cleanup);
       this.events.off(Scenes.Events.DESTROY, cleanup);

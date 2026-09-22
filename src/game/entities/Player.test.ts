@@ -29,8 +29,8 @@ function close(actual: number, expected: number) {
 test("neutral input advances automatically at the initial speed", () => {
   const player = new Player();
   advance(player, 1);
-  close(player.state.distanceTravelled, PLAYER_CONFIG.initialSpeed);
-  assert.equal(player.state.currentSpeed, PLAYER_CONFIG.initialSpeed);
+  close(player.state.distanceTravelled, PLAYER_CONFIG.speeds[0]);
+  assert.equal(player.state.currentSpeed, PLAYER_CONFIG.speeds[0]);
   assert.equal(player.state.courseX, 0);
 });
 
@@ -48,27 +48,34 @@ test("held directions stop at both course edges and reverse immediately", () => 
   assert.equal(player.state.courseX, -PLAYER_CONFIG.courseLimit);
 });
 
-test("analog strength scales horizontal movement and acceleration", () => {
+test("analog strength scales steering while the vertical axis selects a gear", () => {
   const full = new Player();
   const half = new Player();
   advance(full, 0.25, { ...neutral, horizontalAxis: 1, verticalAxis: -1 });
   advance(half, 0.25, { ...neutral, horizontalAxis: 0.5, verticalAxis: -0.5 });
   close(half.state.courseX, full.state.courseX / 2);
-  close(half.state.currentSpeed - PLAYER_CONFIG.initialSpeed,
-    (full.state.currentSpeed - PLAYER_CONFIG.initialSpeed) / 2);
+  assert.equal(half.state.speedLevel, 2);
+  assert.equal(full.state.speedLevel, 2);
 });
 
-test("acceleration and braking respect limits with exact distance across the cap", () => {
-  const fast = new Player();
-  const slow = new Player();
-  advance(fast, 5, { ...neutral, verticalAxis: -1 });
-  advance(slow, 5, { ...neutral, verticalAxis: 1 });
-  assert.equal(fast.state.currentSpeed, 320);
-  close(fast.state.distanceTravelled, 1438);
-  assert.equal(slow.state.currentSpeed, 40);
-  close(slow.state.distanceTravelled, 231.25);
-  advance(fast, 1);
-  assert.equal(fast.state.currentSpeed, 320);
+test("speed changes once per press, holds on release, and stays in gears 1 through 3", () => {
+  const player = new Player();
+  const up = { ...neutral, verticalAxis: -1 };
+  const down = { ...neutral, verticalAxis: 1 };
+  advance(player, 1, up);
+  assert.equal(player.state.speedLevel, 2);
+  close(player.state.distanceTravelled, 220);
+  player.update(neutral, 0);
+  player.update(up, 0);
+  assert.equal(player.state.speedLevel, 3);
+  player.update(neutral, 0);
+  advance(player, 1, up);
+  assert.equal(player.state.currentSpeed, 320);
+  for (let i = 0; i < 4; i++) { player.update(neutral, 0); player.update(down, 0); }
+  assert.equal(player.state.speedLevel, 1);
+  assert.equal(player.state.currentSpeed, 140);
+  advance(player, 1);
+  assert.equal(player.state.currentSpeed, 140);
 });
 
 test("a short jump tap reaches the apex and lands while horizontal movement continues", () => {
@@ -126,8 +133,8 @@ test("invalid deltas do nothing and a long frame advances all simulation by only
   assert.deepEqual(player.state, initial);
   player.update(input, 30_000);
   close(player.state.courseX, 0.07);
-  close(player.state.currentSpeed, 145);
-  close(player.state.distanceTravelled, 7.125);
+  close(player.state.currentSpeed, 220);
+  close(player.state.distanceTravelled, 11);
   close(player.state.jumpElapsedSeconds, 0.05);
 });
 

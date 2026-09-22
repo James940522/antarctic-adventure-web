@@ -1,7 +1,8 @@
 import type { GameObjects, Scene } from "phaser";
 
-import { PLAYER_CONFIG, PLAYER_VIEW, SCENE_LAYOUT } from "@/game/config/constants";
+import { PLAYER_CONFIG, PLAYER_VIEW } from "@/game/config/constants";
 import type { PlayerState } from "@/game/entities/Player";
+import { PerspectiveSystem } from "@/game/systems/PerspectiveSystem";
 
 export class PlayerView {
   private readonly body: GameObjects.Container;
@@ -10,17 +11,17 @@ export class PlayerView {
   private readonly rightFoot: GameObjects.Ellipse;
   private readonly leftFlipper: GameObjects.Ellipse;
   private readonly rightFlipper: GameObjects.Ellipse;
-  private readonly centerX: number;
+  private readonly projection: PerspectiveSystem;
   private readonly groundY: number;
-  private readonly courseHalfWidth: number;
 
-  constructor(scene: Scene) {
-    this.centerX = scene.scale.width / 2;
-    this.groundY = scene.scale.height * SCENE_LAYOUT.playerYRatio;
-    this.courseHalfWidth = this.centerX - PLAYER_VIEW.screenMargin;
+  constructor(scene: Scene, projection: PerspectiveSystem) {
+    this.projection = projection;
+    this.groundY = projection.contactY - 34;
 
     this.shadow = scene.add.ellipse(0, 0, 76, 16, 0x86b5ca, 0.45);
     this.body = scene.add.container(0, 0);
+    this.shadow.setDepth(projection.contactY - 1);
+    this.body.setDepth(projection.contactY + 1);
     this.leftFoot = scene.add.ellipse(-13, 30, 23, 11, 0xf5a83d);
     this.rightFoot = scene.add.ellipse(13, 30, 23, 11, 0xf5a83d);
     this.leftFlipper = scene.add.ellipse(-25, 1, 14, 41, 0x183548);
@@ -40,7 +41,7 @@ export class PlayerView {
   }
 
   render(player: Readonly<PlayerState>): void {
-    const x = this.centerX + player.courseX / PLAYER_CONFIG.courseLimit * this.courseHalfWidth;
+    const { x } = this.projection.project(player.courseX, 0);
     const airborne = player.jumpPhase !== "grounded";
     const stride = Math.sin(player.distanceTravelled / PLAYER_VIEW.strideDistance * Math.PI * 2);
     const step = airborne ? 0 : stride;

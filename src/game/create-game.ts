@@ -2,10 +2,12 @@ import { Game } from "phaser";
 
 import { GAME_EVENTS } from "@/game/config/constants";
 import { createGameConfig } from "@/game/config/game-config";
+import type { RunSnapshot } from "@/game/systems/RunSystem";
 
 type GameCallbacks = {
   onReady: () => void;
   onError: (error: unknown) => void;
+  onSnapshot: (snapshot: RunSnapshot) => void;
 };
 
 // This entry point must only be imported after the React host mounts.
@@ -15,6 +17,7 @@ export function createGame(parent: HTMLElement, callbacks: GameCallbacks, inputT
       preBoot(game) {
         game.events.once(GAME_EVENTS.ready, callbacks.onReady);
         game.events.once(GAME_EVENTS.error, callbacks.onError);
+        game.events.on(GAME_EVENTS.snapshot, callbacks.onSnapshot);
       },
       postBoot(game) {
         game.canvas.setAttribute("role", "img");

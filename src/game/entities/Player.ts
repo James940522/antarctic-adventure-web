@@ -4,6 +4,7 @@ import type { GameInputState } from "../input/input.types.ts";
 export type PlayerState = {
   courseX: number;
   currentSpeed: number;
+  speedLevel: number;
   distanceTravelled: number;
   jumpPhase: "grounded" | "rising" | "falling";
   jumpHeight: number;
@@ -12,9 +13,11 @@ export type PlayerState = {
 
 // Simulation coordinates never depend on the canvas or CSS size.
 export class Player {
+  private previousGearDirection = 0;
   private readonly current: PlayerState = {
     courseX: 0,
-    currentSpeed: PLAYER_CONFIG.initialSpeed,
+    currentSpeed: PLAYER_CONFIG.speeds[0],
+    speedLevel: 1,
     distanceTravelled: 0,
     jumpPhase: "grounded",
     jumpHeight: 0,
@@ -34,23 +37,14 @@ export class Player {
       state.courseX + input.horizontalAxis * PLAYER_CONFIG.lateralSpeed * seconds,
     ));
 
-    const acceleration = input.verticalAxis < 0
-      ? -input.verticalAxis * PLAYER_CONFIG.acceleration
-      : -input.verticalAxis * PLAYER_CONFIG.deceleration;
-    const speed = state.currentSpeed;
-    if (acceleration === 0) {
-      state.distanceTravelled += speed * seconds;
-    } else {
-      const limit = acceleration > 0 ? PLAYER_CONFIG.maxSpeed : PLAYER_CONFIG.minSpeed;
-      const acceleratingSeconds = Math.min(seconds, Math.max(0, (limit - speed) / acceleration));
-      // Integrate up to the speed limit, then cruise for the rest of the frame.
-      // A clamped trapezoid would lose distance differently at different frame rates.
-      const nextSpeed = speed + acceleration * acceleratingSeconds;
-      state.distanceTravelled += speed * acceleratingSeconds
-        + acceleration * acceleratingSeconds ** 2 / 2
-        + nextSpeed * (seconds - acceleratingSeconds);
-      state.currentSpeed = Math.max(PLAYER_CONFIG.minSpeed, Math.min(PLAYER_CONFIG.maxSpeed, nextSpeed));
+    const gearDirection = Math.abs(input.verticalAxis) >= PLAYER_CONFIG.gearAxisThreshold
+      ? -Math.sign(input.verticalAxis) : 0;
+    if (gearDirection !== 0 && gearDirection !== this.previousGearDirection) {
+      state.speedLevel = Math.max(1, Math.min(PLAYER_CONFIG.speeds.length, state.speedLevel + gearDirection));
     }
+    this.previousGearDirection = gearDirection;
+    state.currentSpeed = PLAYER_CONFIG.speeds[state.speedLevel - 1];
+    state.distanceTravelled += state.currentSpeed * seconds;
 
     // Only a fresh press on the ground starts a jump. Midair presses are not queued.
     if (input.jumpPressed && state.jumpPhase === "grounded") {
@@ -69,5 +63,12 @@ export class Player {
     }
     state.jumpPhase = progress < 0.5 - 1e-9 ? "rising" : "falling";
     state.jumpHeight = 4 * PLAYER_CONFIG.jumpHeight * progress * (1 - progress);
+  }
+
+  stopAt(previous: Readonly<PlayerState>, fraction: number): void {
+    const state = this.current;
+    state.courseX = previous.courseX + (state.courseX - previous.courseX) * fraction;
+    state.distanceTravelled = previous.distanceTravelled + (state.distanceTravelled - previous.distanceTravelled) * fraction;
+    state.jumpHeight = previous.jumpHeight + (state.jumpHeight - previous.jumpHeight) * fraction;
   }
 }

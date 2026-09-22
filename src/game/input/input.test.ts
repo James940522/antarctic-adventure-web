@@ -63,6 +63,37 @@ function keyboardFixture() {
   return { document, target, keyboard, key };
 }
 
+test("short speed-key taps survive one frame and are cleared by blur", () => {
+  const { keyboard, key, target } = keyboardFixture();
+  key("keydown", "ArrowUp"); key("keyup", "ArrowUp");
+  assert.equal(keyboard.read().up, true);
+  assert.equal(keyboard.read().up, false);
+  key("keydown", "KeyS"); key("keyup", "KeyS");
+  assert.equal(keyboard.read().down, true);
+  assert.equal(keyboard.read().down, false);
+  key("keydown", "ArrowUp"); target.dispatchEvent(new Event("blur"));
+  assert.equal(keyboard.read().up, false);
+  keyboard.destroy();
+});
+
+test("a held gamepad speed axis must return to neutral after reset", () => {
+  const gamepad = source({ verticalAxis: -1 });
+  const keyboard = source();
+  const manager = new InputManager(keyboard, gamepad);
+  assert.equal(manager.update().verticalAxis, -1);
+  manager.reset();
+  gamepad.state.verticalAxis = -1;
+  assert.equal(manager.update().verticalAxis, 0);
+  keyboard.state.up = true;
+  assert.equal(manager.update().verticalAxis, -1);
+  keyboard.state.up = false;
+  gamepad.state.verticalAxis = 0;
+  manager.update();
+  gamepad.state.verticalAxis = -1;
+  assert.equal(manager.update().verticalAxis, -1);
+  manager.destroy();
+});
+
 test("deadzone removes drift, rescales continuously and clamps bad axes", () => {
   for (const value of [0, 0.17, -0.18, 0.18, NaN, Infinity]) assert.equal(applyDeadzone(value), 0);
   assert.ok(Math.abs(applyDeadzone(0.59) - 0.5) < 1e-10);

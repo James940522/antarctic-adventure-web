@@ -1,4 +1,5 @@
 import type { GameInputState, InputSource } from "./input.types.ts";
+import { PLAYER_CONFIG } from "../config/constants.ts";
 
 function strongestAxis(first: number, second: number): number {
   const value = Math.abs(first) >= Math.abs(second) ? first : second;
@@ -9,6 +10,7 @@ export class InputManager {
   private readonly keyboard: InputSource;
   private readonly gamepad: InputSource;
   private gamepadJumpBlocked = false;
+  private gamepadSpeedBlocked = false;
   private readonly input: GameInputState = {
     left: false, right: false, accelerate: false, brake: false,
     horizontalAxis: 0, verticalAxis: 0,
@@ -35,14 +37,16 @@ export class InputManager {
 
     const left = keyboard.left || gamepad.left;
     const right = keyboard.right || gamepad.right;
-    const up = keyboard.up || gamepad.up;
-    const down = keyboard.down || gamepad.down;
+    const speedBlocked = this.gamepadSpeedBlocked;
+    if (!gamepad.up && !gamepad.down && Math.abs(gamepad.verticalAxis) < PLAYER_CONFIG.gearAxisThreshold) this.gamepadSpeedBlocked = false;
+    const up = keyboard.up || (!speedBlocked && gamepad.up);
+    const down = keyboard.down || (!speedBlocked && gamepad.down);
     const x = left || right
       ? Number(right) - Number(left)
       : strongestAxis(keyboard.horizontalAxis, gamepad.horizontalAxis);
     const y = up || down
       ? Number(down) - Number(up)
-      : strongestAxis(keyboard.verticalAxis, gamepad.verticalAxis);
+      : strongestAxis(keyboard.verticalAxis, speedBlocked ? 0 : gamepad.verticalAxis);
 
     // Keyboard keys were cleared on blur; only a still-held gamepad needs re-arming.
     const blocked = this.gamepadJumpBlocked;
@@ -69,6 +73,7 @@ export class InputManager {
     this.keyboard.reset();
     this.gamepad.reset();
     this.gamepadJumpBlocked = true;
+    this.gamepadSpeedBlocked = true;
     this.input.left = this.input.right = this.input.accelerate = this.input.brake = false;
     this.input.horizontalAxis = this.input.verticalAxis = 0;
     this.input.jump = this.input.jumpPressed = this.input.jumpReleased = false;

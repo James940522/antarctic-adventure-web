@@ -10,6 +10,8 @@ export class KeyboardInput implements InputSource {
   private readonly keys = new Set<string>();
   private readonly state = createDeviceInput();
   private jumpPending = false;
+  private upPending = false;
+  private downPending = false;
 
   constructor(target: HTMLElement) {
     this.target = target;
@@ -35,6 +37,10 @@ export class KeyboardInput implements InputSource {
     // Repeats after losing focus must not re-arm a key that was reset.
     if (event.repeat) return;
     if (event.code === "Space" && !this.keys.has("Space")) this.jumpPending = true;
+    if ((event.code === "ArrowUp" || event.code === "KeyW")
+      && !this.keys.has("ArrowUp") && !this.keys.has("KeyW")) this.upPending = true;
+    if ((event.code === "ArrowDown" || event.code === "KeyS")
+      && !this.keys.has("ArrowDown") && !this.keys.has("KeyS")) this.downPending = true;
     this.keys.add(event.code);
   };
 
@@ -50,8 +56,9 @@ export class KeyboardInput implements InputSource {
   read() {
     this.state.left = this.keys.has("ArrowLeft") || this.keys.has("KeyA");
     this.state.right = this.keys.has("ArrowRight") || this.keys.has("KeyD");
-    this.state.up = this.keys.has("ArrowUp") || this.keys.has("KeyW");
-    this.state.down = this.keys.has("ArrowDown") || this.keys.has("KeyS");
+    this.state.up = this.upPending || this.keys.has("ArrowUp") || this.keys.has("KeyW");
+    this.state.down = this.downPending || this.keys.has("ArrowDown") || this.keys.has("KeyS");
+    this.upPending = this.downPending = false;
     this.state.jump = this.keys.has("Space");
     // Preserve a short down/up tap even when both events precede the next frame.
     this.state.jumpPressed = this.jumpPending;
@@ -62,6 +69,7 @@ export class KeyboardInput implements InputSource {
   reset = (): void => {
     this.keys.clear();
     this.jumpPending = false;
+    this.upPending = this.downPending = false;
     this.state.left = this.state.right = this.state.up = this.state.down = false;
     this.state.jump = this.state.jumpPressed = false;
   };
