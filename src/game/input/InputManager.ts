@@ -1,4 +1,4 @@
-import type { GameInputState, InputSource } from "./input.types.ts";
+import { createDeviceInput, type GameInputState, type InputSource } from "./input.types.ts";
 import { PLAYER_CONFIG } from "../config/constants.ts";
 
 function strongestAxis(first: number, second: number): number {
@@ -9,6 +9,8 @@ function strongestAxis(first: number, second: number): number {
 export class InputManager {
   private readonly keyboard: InputSource;
   private readonly gamepad: InputSource;
+  private readonly touch?: InputSource;
+  private readonly idleTouch = createDeviceInput();
   private gamepadJumpBlocked = false;
   private gamepadSpeedBlocked = false;
   private readonly input: GameInputState = {
@@ -17,9 +19,10 @@ export class InputManager {
     jump: false, jumpPressed: false, jumpReleased: false,
   };
 
-  constructor(keyboard: InputSource, gamepad: InputSource) {
+  constructor(keyboard: InputSource, gamepad: InputSource, touch?: InputSource) {
     this.keyboard = keyboard;
     this.gamepad = gamepad;
+    this.touch = touch;
   }
 
   get state(): Readonly<GameInputState> {
@@ -30,17 +33,18 @@ export class InputManager {
   update(active = true): Readonly<GameInputState> {
     const keyboard = this.keyboard.read();
     const gamepad = this.gamepad.read();
+    const touch = this.touch?.read() ?? this.idleTouch;
     if (!active) {
       this.reset();
       return this.input;
     }
 
-    const left = keyboard.left || gamepad.left;
-    const right = keyboard.right || gamepad.right;
+    const left = keyboard.left || gamepad.left || touch.left;
+    const right = keyboard.right || gamepad.right || touch.right;
     const speedBlocked = this.gamepadSpeedBlocked;
     if (!gamepad.up && !gamepad.down && Math.abs(gamepad.verticalAxis) < PLAYER_CONFIG.gearAxisThreshold) this.gamepadSpeedBlocked = false;
-    const up = keyboard.up || (!speedBlocked && gamepad.up);
-    const down = keyboard.down || (!speedBlocked && gamepad.down);
+    const up = keyboard.up || touch.up || (!speedBlocked && gamepad.up);
+    const down = keyboard.down || touch.down || (!speedBlocked && gamepad.down);
     const x = left || right
       ? Number(right) - Number(left)
       : strongestAxis(keyboard.horizontalAxis, gamepad.horizontalAxis);
@@ -51,8 +55,8 @@ export class InputManager {
     // Keyboard keys were cleared on blur; only a still-held gamepad needs re-arming.
     const blocked = this.gamepadJumpBlocked;
     if (!gamepad.jump) this.gamepadJumpBlocked = false;
-    const held = keyboard.jump || (!blocked && gamepad.jump);
-    const tap = keyboard.jumpPressed || (!blocked && gamepad.jumpPressed);
+    const held = keyboard.jump || touch.jump || (!blocked && gamepad.jump);
+    const tap = keyboard.jumpPressed || touch.jumpPressed || (!blocked && gamepad.jumpPressed);
     const previousJump = this.input.jump;
     const jump = held;
     const pressed = !previousJump && (held || tap);
@@ -72,6 +76,7 @@ export class InputManager {
   reset(): void {
     this.keyboard.reset();
     this.gamepad.reset();
+    this.touch?.reset();
     this.gamepadJumpBlocked = true;
     this.gamepadSpeedBlocked = true;
     this.input.left = this.input.right = this.input.accelerate = this.input.brake = false;
@@ -83,5 +88,6 @@ export class InputManager {
     this.reset();
     this.keyboard.destroy();
     this.gamepad.destroy();
+    this.touch?.destroy();
   }
 }

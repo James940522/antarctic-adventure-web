@@ -6,6 +6,7 @@ import { KeyboardInput } from "@/game/input/KeyboardInput";
 import { GamepadInput } from "@/game/input/GamepadInput";
 import { InputManager } from "@/game/input/InputManager";
 import { InputDebugOverlay } from "@/game/input/InputDebugOverlay";
+import { TouchInput } from "@/game/input/TouchInput";
 import { RunSystem } from "@/game/systems/RunSystem";
 import { RecordStore } from "@/game/systems/RecordStore";
 import { PerspectiveSystem } from "@/game/systems/PerspectiveSystem";
@@ -18,6 +19,7 @@ export class GameScene extends Scene {
   private keyboard?: KeyboardInput;
   private gamepad?: GamepadInput;
   private inputDebug?: InputDebugOverlay;
+  private touch?: TouchInput;
   private run?: RunSystem;
   private records?: RecordStore;
   private courseView?: CourseView;
@@ -55,7 +57,7 @@ export class GameScene extends Scene {
 
   update(time: number, delta: number): void {
     if (!this.controls || !this.keyboard || !this.gamepad || !this.run) return;
-    const inputActive = this.keyboard.isActive;
+    const inputActive = this.keyboard.isActive || (this.touch?.isActive ?? false);
     const document = this.inputTarget.ownerDocument;
     const active = document.visibilityState !== "hidden" && document.hasFocus();
     const input = this.controls.update(inputActive);
@@ -63,6 +65,7 @@ export class GameScene extends Scene {
       const ended = this.run.update(input, this.skipNextDelta ? 0 : delta);
       this.skipNextDelta = false;
       if (ended) {
+        this.controls.reset();
         this.records?.save(this.run.bestDistance);
         this.restartAt = time + 600;
         this.nextHudRefresh = 0;
@@ -84,7 +87,8 @@ export class GameScene extends Scene {
   private publishSnapshot(): void {
     const document = this.inputTarget.ownerDocument;
     this.game.events.emit(GAME_EVENTS.snapshot, this.run?.snapshot(
-      document.visibilityState === "hidden" || !document.hasFocus(), this.keyboard?.isActive ?? false,
+      document.visibilityState === "hidden" || !document.hasFocus(),
+      (this.keyboard?.isActive ?? false) || (this.touch?.isActive ?? false),
     ));
   }
 
@@ -101,9 +105,11 @@ export class GameScene extends Scene {
   private setupInput(): void {
     const keyboard = new KeyboardInput(this.inputTarget);
     const gamepad = new GamepadInput();
-    const controls = new InputManager(keyboard, gamepad);
+    const touch = new TouchInput(this.inputTarget);
+    const controls = new InputManager(keyboard, gamepad, touch);
     this.keyboard = keyboard;
     this.gamepad = gamepad;
+    this.touch = touch;
     this.controls = controls;
 
     // Reset synchronously even if the hidden tab's game loop stops updating.
@@ -129,7 +135,7 @@ export class GameScene extends Scene {
       controls.destroy();
       this.game.events.off(GAME_EVENTS.restart, this.restart, this);
       this.courseView?.reset();
-      this.controls = this.keyboard = this.gamepad = this.inputDebug = undefined;
+      this.controls = this.keyboard = this.gamepad = this.inputDebug = this.touch = undefined;
       this.run = this.playerView = this.courseView = this.records = undefined;
       this.skipNextDelta = true;
       this.events.off(Scenes.Events.SHUTDOWN, cleanup);

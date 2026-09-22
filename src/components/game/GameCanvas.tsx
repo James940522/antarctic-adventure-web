@@ -3,8 +3,10 @@
 import type { Game } from "phaser";
 import { useEffect, useRef, useState } from "react";
 
-import { GAME_EVENTS, GAME_SIZE } from "@/game/config/constants";
+import { GAME_EVENTS } from "@/game/config/constants";
 import { GameHud } from "@/components/game/GameHud";
+import { TouchControls } from "@/components/game/TouchControls";
+import styles from "./GameViewport.module.css";
 import type { RunSnapshot } from "@/game/systems/RunSystem";
 
 type LoadStatus = "loading" | "ready" | "error";
@@ -92,16 +94,13 @@ export function GameCanvas() {
   }, [attempt]);
 
   return (
+    <div className={styles.stage}>
     <section
       ref={inputTargetRef}
       aria-label="남극 모험 게임 화면"
       aria-busy={status === "loading"}
       data-state={status}
-      className="relative overflow-hidden rounded-sm bg-sky-100 shadow-2xl outline-none focus-visible:ring-2 focus-visible:ring-sky-300 focus-visible:ring-offset-4 focus-visible:ring-offset-slate-950"
-      style={{
-        aspectRatio: `${GAME_SIZE.width} / ${GAME_SIZE.height}`,
-        width: `min(100%, ${GAME_SIZE.width}px, calc((100svh - 2rem) * ${GAME_SIZE.width / GAME_SIZE.height}))`,
-      }}
+      className={styles.console}
       tabIndex={0}
       onPointerDown={(event) => {
         if (event.target === event.currentTarget || event.target instanceof HTMLCanvasElement) {
@@ -113,8 +112,10 @@ export function GameCanvas() {
         자동으로 전진합니다. 게임 화면을 클릭하거나 Tab으로 선택한 뒤 좌우 방향키 또는 A D로 이동하고,
         위아래 방향키 또는 W S를 한 번씩 눌러 1~3단 속도를 바꿉니다. Space로 점프합니다.
         박스에 닿으면 게임오버이며 이동 거리로 기록을 겨룹니다. 게임패드도 같은 조작을 지원합니다.
+        태블릿 이하에서는 좌우 이동·점프·감속·가속 버튼을 사용할 수 있습니다.
       </p>
-      <div ref={containerRef} className="absolute inset-0" />
+      <div className={styles.surface}>
+      <div ref={containerRef} className={styles.mount} />
 
       {status === "ready" && run && <GameHud run={run} onRestart={() => {
         gameRef.current?.events.emit(GAME_EVENTS.restart);
@@ -154,6 +155,9 @@ export function GameCanvas() {
           게임을 실행하려면 JavaScript를 켜 주세요.
         </p>
       </noscript>
+      </div>
+      <TouchControls disabled={status !== "ready" || run?.status === "gameover"} />
     </section>
+    </div>
   );
 }

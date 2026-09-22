@@ -20,8 +20,9 @@ export function createGameConfig(
     // Our adapters own input; keep Phaser's global keyboard capture disabled.
     input: { keyboard: false, mouse: false, touch: false, gamepad: false },
     scale: {
-      mode: Scale.FIT,
-      autoCenter: Scale.CENTER_BOTH,
+      // Keep simulation at 960×540. CSS owns proportional sizing and rotation.
+      mode: Scale.NONE,
+      autoCenter: Scale.NO_CENTER,
     },
     scene: [BootScene, new GameScene(inputTarget)],
     callbacks,

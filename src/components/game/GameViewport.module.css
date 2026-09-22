@@ -1,0 +1,107 @@
+.stage {
+  --inset-top: max(12px, env(safe-area-inset-top));
+  --inset-right: max(12px, env(safe-area-inset-right));
+  --inset-bottom: max(12px, env(safe-area-inset-bottom));
+  --inset-left: max(12px, env(safe-area-inset-left));
+  --view-width: 100dvw;
+  --view-height: 100dvh;
+  --available-width: calc(var(--view-width) - var(--inset-left) - var(--inset-right));
+  --available-height: calc(var(--view-height) - var(--inset-top) - var(--inset-bottom));
+  --controls-height: 0px;
+  --controls-gap: 0px;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--inset-top) var(--inset-right) var(--inset-bottom) var(--inset-left);
+}
+
+.console {
+  width: min(960px, var(--available-width));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--controls-gap);
+  outline: none;
+}
+
+.surface {
+  position: relative;
+  width: min(100%, calc((var(--available-height) - var(--controls-height) - var(--controls-gap)) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  flex: none;
+  overflow: hidden;
+  border-radius: 4px;
+  background: #e0f2fe;
+  box-shadow: 0 16px 50px #0005;
+  container-type: inline-size;
+}
+
+.console:focus-visible .surface { outline: 2px solid #7dd3fc; outline-offset: 3px; }
+.mount { position: absolute; inset: 0; }
+.mount canvas {
+  /* CSS owns display sizing: rotated DOM bounds must not change Phaser's FIT calculations. */
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  margin: 0 !important;
+}
+
+.controls { display: none; }
+.control {
+  height: 56px;
+  min-width: 48px;
+  border: 1px solid #94a3b84d;
+  border-radius: 16px;
+  background: rgb(71 85 105 / 28%);
+  color: #e2e8f0;
+  font-size: 24px;
+  font-weight: 700;
+  touch-action: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  cursor: pointer;
+}
+.control:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
+.control[data-pressed="true"] { background: rgb(56 189 248 / 40%); color: #e0f2fe; border-color: #bae6fd; }
+.control:disabled { opacity: 0.35; cursor: default; }
+.left, .right { width: clamp(48px, 9vw, 88px); }
+.left { justify-self: start; }
+.right { justify-self: end; }
+.speed { height: 48px; border-radius: 50%; font-size: 18px; }
+.jump { background: rgb(190 242 100 / 22%); color: #d9f99d; font-size: 15px; }
+.jump[data-pressed="true"] { background: rgb(190 242 100 / 40%); color: #ecfccb; }
+
+@media (max-width: 1024px), (pointer: coarse) {
+  .stage { --controls-height: 56px; --controls-gap: 8px; }
+  .controls {
+    display: grid;
+    width: 100%;
+    height: var(--controls-height);
+    grid-template-columns: 1fr 48px 88px 48px 1fr;
+    align-items: center;
+    gap: clamp(4px, 1vw, 8px);
+  }
+  .desktopHint { display: none; }
+}
+
+/* Rotate only when portrait is at least 35% longer (height / width >= 1.35).
+   Nearly square tablets keep their natural orientation; landscape never rotates. */
+@media (max-width: 1024px) and (max-aspect-ratio: 20/27),
+       (pointer: coarse) and (max-aspect-ratio: 20/27) {
+  .stage {
+    --view-width: 100dvh;
+    --view-height: 100dvw;
+    --inset-top: max(12px, env(safe-area-inset-right));
+    --inset-right: max(12px, env(safe-area-inset-bottom));
+    --inset-bottom: max(12px, env(safe-area-inset-left));
+    --inset-left: max(12px, env(safe-area-inset-top));
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    width: var(--view-width);
+    height: var(--view-height);
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+}

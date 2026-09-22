@@ -1,16 +1,17 @@
 import type { RunSnapshot } from "@/game/systems/RunSystem";
+import styles from "./GameViewport.module.css";
 
 export function GameHud({ run, onRestart }: { run: RunSnapshot; onRestart: () => void }) {
   const gameover = run.status === "gameover";
   return <div className="pointer-events-none absolute inset-0 text-slate-950">
     <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 bg-gradient-to-b from-slate-950/85 to-slate-950/0 px-[3%] pb-[5%] pt-[2%] text-white">
       <div>
-        <p className="text-[clamp(8px,1.3vw,12px)] font-bold tracking-widest text-cyan-200">ANTARCTIC / 거리 도전</p>
-        <p className="text-[clamp(20px,4vw,40px)] font-black leading-tight tabular-nums" aria-label={`이동 거리 ${run.distance}미터`}>
+        <p className="text-[clamp(8px,1.3cqw,12px)] font-bold tracking-widest text-cyan-200">ANTARCTIC / 거리 도전</p>
+        <p className="text-[clamp(20px,4cqw,40px)] font-black leading-tight tabular-nums" aria-label={`이동 거리 ${run.distance}미터`}>
           {run.distance.toLocaleString()}<span className="ml-1 text-sm font-normal">m</span>
         </p>
       </div>
-      <div className="text-right text-[clamp(9px,1.5vw,14px)]">
+      <div className="text-right text-[clamp(9px,1.5cqw,14px)]">
         <p className="tabular-nums">최고 기록 <strong>{run.bestDistance.toLocaleString()} m</strong></p>
         <div className="mt-1 flex justify-end gap-1" aria-label={`속도 ${run.speedLevel}단`}>
           {[1, 2, 3].map((level) => <span key={level} className={`rounded-sm px-2 py-0.5 font-bold ${level <= run.speedLevel ? "bg-lime-300 text-slate-950" : "bg-white/15 text-white/50"}`}>{level}단</span>)}
@@ -30,7 +31,7 @@ export function GameHud({ run, onRestart }: { run: RunSnapshot; onRestart: () =>
     </div> : run.paused ? <div className="absolute inset-0 grid place-items-center bg-slate-950/20">
       <p className="rounded bg-slate-950/80 px-4 py-2 text-sm text-white">일시정지 · 이 창으로 돌아오면 계속 달립니다</p>
     </div> : null}
-    {!gameover && !run.paused && <div className="absolute inset-x-0 bottom-[3%] px-3 text-center text-[clamp(8px,1.3vw,12px)] font-medium text-slate-600">
+    {!gameover && !run.paused && <div className={`${styles.desktopHint} absolute inset-x-0 bottom-[3%] px-3 text-center text-[clamp(8px,1.3cqw,12px)] font-medium text-slate-600`}>
       {run.inputActive ? "← → 이동 · ↑ ↓ 한 단 변경 · SPACE 점프 · 패드 지원" : "자동 전진 중 · 화면 클릭 또는 Tab으로 조작 시작"}
     </div>}
   </div>;
