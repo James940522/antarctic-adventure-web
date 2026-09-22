@@ -6,10 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/game/input/*.test.ts src/game/entities/*.test.ts"
   },
   "dependencies": {
     "next": "16.3.5",
+    "phaser": "^4.2.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

@@ -1,36 +1,82 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# antarctic-adventure-web
 
-## Getting Started
+남극을 달리는 펭귄을 조작하는 의사 3D 전방 스크롤 아케이드 게임 프로젝트.
+키보드와 게임패드로 이동·가감속·점프를 조작하고, 장애물을 피하며 제한 시간 안에 목적지에 도착하는 것이 목표다.
 
-First, run the development server:
+## 현재 상태
+
+3단계 플레이어 이동·가감속·점프를 구현했다. 홈 화면에 960 × 540 논리 해상도의 남극 배경과 지평선을 바라보는 펭귄의 뒷모습이 표시된다. 화면은 사용 가능한 너비·높이에 맞춰 16:9 비율을 유지한다.
+
+- 설치됨: Next.js App Router, React, TypeScript, Phaser 4, Tailwind CSS, ESLint
+- 구현됨: Phaser 실행 기반, 통합 입력, 좌우 이동과 경계 제한, 자동 전진 거리·가감속, 점프, 달리기 동작, 포커스 이탈 시 일시정지
+- 다음 단계: 직선 코스와 원근 표현. 현재 전진은 실제 누적 거리·달리기 동작에 반영되며 배경 스크롤과 장애물은 아직 없다.
+- 패키지 매니저: pnpm (`package.json`의 `packageManager` 기준)
+
+## 게임 코드 구조
+
+- `src/components/game/GameCanvas.tsx`: React 호스트, 비동기 로딩과 게임 수명 주기
+- `src/game/create-game.ts`: 브라우저에서만 불러오는 Phaser 진입점과 준비·오류 콜백
+- `src/game/config/`: 논리 해상도, 화면 배치 상수, Phaser 설정
+- `src/game/scenes/`: 초기화 scene과 입력 → 플레이어 갱신 → 표시를 연결하는 scene
+- `src/game/entities/`: 순수 이동 모델 `Player`, 뒷모습·달리기·점프 표시 `PlayerView`, 이동 테스트
+- `src/game/input/`: 키보드·게임패드 어댑터, InputManager, 개발용 표시, 입력 테스트
+
+외부 이미지·폰트·음원 없이 실행된다. Phaser 런타임 모듈은 호스트의 effect에서 동적으로 불러오며, 서버 렌더링에서 실행하지 않는다.
+
+## 실행
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+기본 개발 주소는 [localhost:3000](http://localhost:3000)이다.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 입력 확인
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+게임 화면을 클릭하거나 Tab으로 선택하면 입력과 주행이 활성화된다. 화면 밖이나 다른 탭으로 이동하면 입력을 초기화하고 이동·거리·점프를 함께 일시정지한다. 복귀 첫 프레임의 delta는 버리고, 긴 프레임은 최대 50ms만 시뮬레이션하여 순간 이동을 막는다.
 
-## Learn More
+| 동작 | 키보드 | 표준 게임패드 |
+| --- | --- | --- |
+| 좌우 | ← / → 또는 A / D | 왼쪽 스틱 X 또는 D-pad 좌우 |
+| 가속·감속 | ↑ / ↓ 또는 W / S | 왼쪽 스틱 Y 또는 D-pad 위아래 |
+| 점프 | Space | 남쪽 버튼: Xbox A / PlayStation Cross |
 
-To learn more about Next.js, take a look at the following resources:
+디지털 방향 입력은 해당 축의 스틱보다 우선하며 반대 방향은 상쇄된다. 스틱 deadzone은 0.18이다. 장치 전환 설정 없이 키보드와 패드를 함께 사용할 수 있다. 비표준 패드는 축 0/1·버튼 0만 기본 매핑으로 시도하며 실제 배치는 장치마다 다를 수 있다.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+좌우 입력은 실제 펭귄 이동에 연결된다. 코스 좌표는 -1~1로 제한하고 화면 양쪽에 64 논리 픽셀의 중심 여백을 두어 날개·그림자까지 화면 안에 남긴다. 스틱을 절반 기울이면 이동·가감속 강도도 절반이 된다. ↑·↓는 전진 속도를 조절하며 펭귄의 화면 Y 위치는 점프할 때 변한다.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+초기 전진 속도는 140, 범위는 40~320 논리 거리/초이며 입력을 놓으면 현재 속도를 유지한다. 점프는 0.8초 동안 최대 100 논리 픽셀 높이의 포물선을 그린다. 공중 재점프나 버튼을 누른 채 착지 후 자동 점프는 허용하지 않는다. 튜닝 값은 `src/game/config/constants.ts`에서 관리한다.
 
-## Deploy on Vercel
+개발 서버는 입력·플레이어 확인 패널을 기본 표시한다. 정규화된 X/Y 축, 방향·속도 입력, 점프 held 상태와 눌림·해제 누적 횟수, 게임패드 상태, 실제 속도·거리·courseX·점프 상태와 높이를 표시한다. 아주 짧은 Space 입력도 한 번 감지하며, 다른 장치가 점프를 누르고 있는 동안 중복 점프를 발생시키지 않는다.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- `?debugInput=0`: 개발용 표시 끄기
+- `?debugInput=1`: 프로덕션 미리보기에서도 명시적으로 표시 켜기
+- 프로덕션 기본 화면에서는 표시하지 않음
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+패드가 표시되지 않으면 연결 후 버튼을 한 번 누른다. API가 없거나 접근이 거부되어도 키보드는 계속 작동한다. 포커스를 다시 얻을 때 이미 누르고 있던 패드 점프는 놓았다가 다시 눌러야 한다.
+
+## 검증
+
+```bash
+pnpm lint
+pnpm test
+pnpm exec next typegen
+pnpm exec tsc --noEmit
+pnpm build
+```
+
+처음 체크아웃한 환경에서는 `next typegen`으로 Next.js 라우트 타입을 생성한다. 개발 서버나 빌드에서 이미 타입을 생성했다면 바로 타입 검사를 실행할 수 있다.
+
+입력·이동 자동 검증 26개는 Node.js 24에서 실행 확인한 내장 테스트 러너를 사용한다. 좌우 경계, 속도 상·하한, 점프 상태, 긴 프레임 제한, 30·60·144 FPS의 거리·점프 일관성, 입력 장치 간 같은 이동 결과를 확인한다. 별도 테스트 라이브러리는 추가하지 않았다. 게임패드 검증은 모의 스냅샷을 사용하며, 실제 Xbox·PlayStation·조이스틱의 OS·브라우저별 동작은 수동 확인이 필요하다.
+
+프로덕션 빌드 실행:
+
+```bash
+pnpm start
+```
+
+## 개발 문서
+
+- [프로젝트 작업 지침](AGENTS.md): 게임 방향, 기술 제약, 입력·원근 설계, 검증 기준
+- [순차 구현 계획](docs/IMPLEMENTATION_PLAN.md): 단계별 작업 범위와 완료 조건
