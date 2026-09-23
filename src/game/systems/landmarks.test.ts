@@ -201,6 +201,11 @@ test("pause, invalid time and long frame gaps cannot skip the celebration", () =
   const run = new RunSystem();
   approachFirst(run, 60, firstDestinationWorld);
   const frozen = { ...run.player.state };
+  run.setPaused(true);
+  for (let i = 0; i < 100; i++) run.update(neutral, 50);
+  assert.equal(run.landmarks.celebrationElapsedSeconds, 0);
+  assert.deepEqual(run.player.state, frozen);
+  run.setPaused(false);
   for (const delta of [0, NaN, Infinity, -1]) run.update(neutral, delta);
   assert.equal(run.landmarks.celebrationElapsedSeconds, 0);
   run.update(neutral, 60000);

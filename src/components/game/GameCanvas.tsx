@@ -6,15 +6,19 @@ import { useEffect, useRef, useState } from "react";
 import { GAME_EVENTS } from "@/game/config/constants";
 import { GameHud } from "@/components/game/GameHud";
 import { TouchControls } from "@/components/game/TouchControls";
+import { PauseOverlay } from "./PauseOverlay";
 import styles from "./GameViewport.module.css";
 import type { GameSnapshot } from "@/game/types/game.types";
 
 type LoadStatus = "loading" | "ready" | "error";
+// Shared across actual unmount/remount, including a quick Menu → Classic switch.
+let pendingTeardown: Promise<void> = Promise.resolve();
 
-export function GameCanvas() {
+export function GameCanvas({ onMenu, onPlaybackChange, muted, onMute }: {
+  onMenu: () => void; onPlaybackChange: (playing: boolean) => void; muted: boolean; onMute: () => void;
+}) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputTargetRef = useRef<HTMLElement>(null);
-  const teardownRef = useRef<Promise<void>>(Promise.resolve());
   const gameRef = useRef<Game | undefined>(undefined);
   const [run, setRun] = useState<GameSnapshot | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
@@ -42,7 +46,7 @@ export function GameCanvas() {
       if (gameRef.current === retiringGame) gameRef.current = undefined;
 
       // Phaser destroys on its next frame. Wait before creating a replacement.
-      teardownRef.current = new Promise<void>((resolve) => {
+      pendingTeardown = new Promise<void>((resolve) => {
         retiringGame.events.once("destroy", () => resolve());
         retiringGame.destroy(true, false);
       });
@@ -61,7 +65,7 @@ export function GameCanvas() {
     const initialize = async () => {
       try {
         const { createGame } = await import("@/game/create-game");
-        await teardownRef.current;
+        await pendingTeardown;
         if (cancelled) return;
 
         setStatus("loading");
@@ -93,6 +97,15 @@ export function GameCanvas() {
     };
   }, [attempt]);
 
+  useEffect(() => {
+    if (status === "ready" && !run?.pauseMenuOpen) inputTargetRef.current?.focus({ preventScroll: true });
+  }, [status, run?.pauseMenuOpen]);
+
+  const playing = status === "ready" && Boolean(run) && !run?.paused && run?.status !== "gameover";
+  useEffect(() => { onPlaybackChange(playing); }, [playing, onPlaybackChange]);
+
+  const resume = () => gameRef.current?.events.emit(GAME_EVENTS.pause, false);
+
   return (
     <div className={styles.stage}>
     <section
@@ -118,7 +131,7 @@ export function GameCanvas() {
       <div className={styles.surface}>
       <div ref={containerRef} className={styles.mount} />
 
-      {status === "ready" && run && <GameHud run={run} onRestart={() => {
+      {status === "ready" && run && <GameHud run={run} onPause={() => gameRef.current?.events.emit(GAME_EVENTS.pause, true)} onMenu={onMenu} onRestart={() => {
         gameRef.current?.events.emit(GAME_EVENTS.restart);
         inputTargetRef.current?.focus({ preventScroll: true });
       }} />}
@@ -148,6 +161,7 @@ export function GameCanvas() {
           >
             다시 시도
           </button>
+          <button type="button" onClick={onMenu} className="rounded px-4 py-2 underline">메인 메뉴</button>
         </div>
       )}
 
@@ -157,7 +171,8 @@ export function GameCanvas() {
         </p>
       </noscript>
       </div>
-      <TouchControls disabled={status !== "ready" || run?.status !== "running"} />
+      <TouchControls disabled={status !== "ready" || run?.status !== "running" || run.paused} />
+      {run?.pauseMenuOpen && <PauseOverlay onResume={resume} onMenu={onMenu} muted={muted} onMute={onMute} />}
     </section>
     </div>
   );

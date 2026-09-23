@@ -30,7 +30,7 @@ function hasInput(pad: GamepadSnapshot): boolean {
     || applyDeadzone(pad.axes[1] ?? 0) !== 0
     || isPressed(pad, 0)
     || (pad.mapping === "standard" && (
-      isPressed(pad, 12) || isPressed(pad, 13) || isPressed(pad, 14) || isPressed(pad, 15)
+      isPressed(pad, 9) || isPressed(pad, 12) || isPressed(pad, 13) || isPressed(pad, 14) || isPressed(pad, 15)
     ));
 }
 
@@ -102,6 +102,7 @@ export class GamepadInput implements InputSource {
     this.state.jump = isPressed(selected, 0);
     // Unmapped joysticks use only axes 0/1 and button 0 as an explicit fallback.
     if (selected.mapping === "standard") {
+      this.state.pause = isPressed(selected, 9);
       this.state.up = isPressed(selected, 12);
       this.state.down = isPressed(selected, 13);
       this.state.left = isPressed(selected, 14);
@@ -114,6 +115,7 @@ export class GamepadInput implements InputSource {
     this.state.left = this.state.right = this.state.up = this.state.down = false;
     this.state.horizontalAxis = this.state.verticalAxis = 0;
     this.state.jump = this.state.jumpPressed = false;
+    this.state.pause = this.state.pausePressed = false;
   }
 
   destroy(): void {

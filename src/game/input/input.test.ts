@@ -76,6 +76,49 @@ test("short speed-key taps survive one frame and are cleared by blur", () => {
   keyboard.destroy();
 });
 
+test("Escape preserves short taps, ignores key repeat and clears stale pause input", () => {
+  const { keyboard, key, target } = keyboardFixture();
+  const manager = new InputManager(keyboard, source());
+  key("keydown", "Escape"); key("keyup", "Escape");
+  manager.update();
+  assert.equal(manager.pausePressed, true);
+  manager.reset();
+  key("keydown", "Escape", { repeat: true });
+  manager.update();
+  assert.equal(manager.pausePressed, false);
+  key("keydown", "Escape");
+  manager.update();
+  assert.equal(manager.pausePressed, true);
+  manager.update();
+  assert.equal(manager.pausePressed, false);
+  target.dispatchEvent(new Event("blur"));
+  manager.update(false);
+  assert.equal(manager.pausePressed, false);
+  manager.destroy();
+});
+
+test("standard Menu button pauses and resumes once per press even across pause resets", () => {
+  let pads = [pad()];
+  const gamepad = new GamepadInput(() => pads);
+  const manager = new InputManager(source(), gamepad);
+  manager.update();
+  for (let cycle = 0; cycle < 3; cycle++) {
+    pads = [pad({ pressed: [9] })];
+    manager.update();
+    assert.equal(manager.pausePressed, true);
+    manager.reset();
+    manager.update();
+    assert.equal(manager.pausePressed, false);
+    pads = [pad()];
+    manager.update();
+    assert.equal(manager.pausePressed, false);
+  }
+  manager.destroy();
+  const fallback = new GamepadInput(() => [pad({ mapping: "", pressed: [9] })]);
+  assert.equal(fallback.read().pause, false);
+  fallback.destroy();
+});
+
 test("a held gamepad speed axis must return to neutral after reset", () => {
   const gamepad = source({ verticalAxis: -1 });
   const keyboard = source();

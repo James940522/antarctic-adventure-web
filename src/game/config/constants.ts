@@ -13,6 +13,7 @@ export const GAME_EVENTS = {
   error: "antarctic:error",
   snapshot: "antarctic:snapshot",
   restart: "antarctic:restart",
+  pause: "antarctic:pause",
   landmarkArrived: "antarctic:landmark-arrived",
 } as const;
 

@@ -13,6 +13,9 @@ export class InputManager {
   private readonly idleTouch = createDeviceInput();
   private gamepadJumpBlocked = false;
   private gamepadSpeedBlocked = false;
+  private gamepadPauseBlocked = true;
+  private previousPause = false;
+  private pauseEdge = false;
   private readonly input: GameInputState = {
     left: false, right: false, accelerate: false, brake: false,
     horizontalAxis: 0, verticalAxis: 0,
@@ -29,6 +32,8 @@ export class InputManager {
     return this.input;
   }
 
+  get pausePressed(): boolean { return this.pauseEdge; }
+
   // Read once per game update. The returned state is reused, not a stored snapshot.
   update(active = true): Readonly<GameInputState> {
     const keyboard = this.keyboard.read();
@@ -38,6 +43,12 @@ export class InputManager {
       this.reset();
       return this.input;
     }
+
+    const pauseBlocked = this.gamepadPauseBlocked;
+    if (!gamepad.pause) this.gamepadPauseBlocked = false;
+    const pauseHeld = keyboard.pause || (!pauseBlocked && gamepad.pause);
+    this.pauseEdge = !this.previousPause && (pauseHeld || keyboard.pausePressed);
+    this.previousPause = pauseHeld;
 
     const left = keyboard.left || gamepad.left || touch.left;
     const right = keyboard.right || gamepad.right || touch.right;
@@ -79,6 +90,8 @@ export class InputManager {
     this.touch?.reset();
     this.gamepadJumpBlocked = true;
     this.gamepadSpeedBlocked = true;
+    this.gamepadPauseBlocked = true;
+    this.previousPause = this.pauseEdge = false;
     this.input.left = this.input.right = this.input.accelerate = this.input.brake = false;
     this.input.horizontalAxis = this.input.verticalAxis = 0;
     this.input.jump = this.input.jumpPressed = this.input.jumpReleased = false;

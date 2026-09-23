@@ -16,6 +16,7 @@ export type RunSnapshot = {
   boxesPerRow: number;
   newRecord: boolean;
   paused: boolean;
+  pauseMenuOpen: boolean;
   inputActive: boolean;
 };
 
@@ -24,6 +25,7 @@ export class RunSystem {
   obstacles: ObstacleSystem;
   readonly landmarks: LandmarkSystem;
   private ended = false;
+  private manualPause = false;
   bestRecord: RunRecord;
   newRecord = false;
   elapsedSeconds = 0;
@@ -45,8 +47,16 @@ export class RunSystem {
       ? this.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter / this.elapsedSeconds : 0;
   }
 
+  get isPaused(): boolean { return this.manualPause; }
+
+  setPaused(paused: boolean): boolean {
+    if (this.ended || this.manualPause === paused) return false;
+    this.manualPause = paused;
+    return true;
+  }
+
   update(input: Readonly<GameInputState>, deltaMs: number): boolean {
-    if (this.ended || !Number.isFinite(deltaMs) || deltaMs < 0) return false;
+    if (this.ended || this.manualPause || !Number.isFinite(deltaMs) || deltaMs < 0) return false;
     const delta = Math.min(deltaMs, PLAYER_CONFIG.maxDeltaMs);
     if (this.landmarks.isCelebrating) {
       if (this.landmarks.advanceCelebration(delta / 1000)) this.player.depart();
@@ -90,6 +100,7 @@ export class RunSystem {
     this.player = new Player();
     this.obstacles = new ObstacleSystem(this.random);
     this.ended = false;
+    this.manualPause = false;
     this.landmarks.reset();
     this.newRecord = false;
     this.elapsedSeconds = 0;
@@ -104,7 +115,7 @@ export class RunSystem {
       averageSpeed, bestAverageSpeed: best.averageSpeed,
       speed: this.player.state.currentSpeed / RUN_CONFIG.unitsPerMeter,
       boxesPerRow: boxesPerRow(this.player.state.distanceTravelled),
-      newRecord: this.newRecord, paused, inputActive,
+      newRecord: this.newRecord, paused: paused || this.manualPause, pauseMenuOpen: this.manualPause, inputActive,
     };
   }
 }

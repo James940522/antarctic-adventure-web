@@ -1,0 +1,68 @@
+.menu { position: absolute; inset: 0; overflow-y: auto; display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); color: #f3fbff; background: linear-gradient(180deg, #102d46 0%, #316782 64%, #a2d0df 100%); isolation: isolate; }
+.menu::before, .menu::after { content: ""; position: absolute; z-index: -1; inset: 48% 0 0; pointer-events: none; }
+.menu::before { background: #96c7d8; clip-path: polygon(0 48%, 12% 16%, 30% 53%, 39% 32%, 59% 71%, 75% 9%, 92% 42%, 100% 29%, 100% 100%, 0 100%); }
+.menu::after { background: #e1f3f9; clip-path: polygon(0 76%, 23% 59%, 51% 81%, 75% 64%, 100% 84%, 100% 100%, 0 100%); }
+.menuContent { width: min(100%, 430px); text-align: center; padding-block: 16px; }
+.eyebrow { font: 10px/1.4 monospace; letter-spacing: .16em; color: #bcdfed; }
+.title { margin-top: 14px; font: 900 clamp(26px, 5vw, 44px)/1.2 monospace; letter-spacing: -.04em; text-shadow: 3px 4px 0 #102d46; }
+.title span { display: block; margin-top: 10px; font: 700 20px/1.4 sans-serif; letter-spacing: .35em; }
+.intro { margin-top: 18px; color: #cfeaf4; font-size: 13px; }
+.menuActions { display: grid; gap: 12px; width: min(100%, 280px); margin: 30px auto 0; }
+.primary, .secondary { display: block; width: 100%; min-height: 48px; padding: 12px 20px; border: 1px solid #d9eff7; border-radius: 5px; cursor: pointer; font-size: 14px; font-weight: 700; }
+.primary { background: #c4ed83; color: #173245; border-color: #e6ffbd; box-shadow: 0 4px 0 #25483c; }
+.primary:hover { background: #dafaa9; }
+.secondary { color: #e8f6fc; background: #173b51eb; box-shadow: 0 4px 0 #163346; }
+.secondary:hover { background: #24516b; }
+.primary strong, .secondary strong { display: block; font-size: 17px; }
+.primary small, .secondary small { display: block; margin-top: 3px; font: 10px/1.5 monospace; letter-spacing: .08em; opacity: .8; }
+.primary small span { margin-left: 10px; }
+.help { margin: 22px auto 0; font-size: 11px; line-height: 1.8; color: #193e54; background: #e1f3f9c9; width: fit-content; padding: 5px 10px; border-radius: 3px; }
+.developerButton { margin-top: 25px; padding: 8px 20px; min-height: 44px; border-radius: 3px; cursor: pointer; font: 11px/1.4 monospace; letter-spacing: .15em; color: #183a4e; background: #e1f3f9d9; }
+.developerButton span { display: block; margin-top: 3px; font: 700 14px/1.4 sans-serif; letter-spacing: 0; }
+.menu button:focus-visible, .dialog :is(button, a):focus-visible { outline: 3px solid #fff; outline-offset: 4px; }
+.dialog { position: fixed; inset: auto; top: 50%; left: 50%; transform: translate(-50%, -50%); margin: 0; width: min(360px, calc(100dvw - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 24px; border: 1px solid #86bdd2; border-radius: 8px; background: #15364afc; color: #f3fbff; text-align: center; box-shadow: 0 12px 44px #06131f66; }
+.dialog::backdrop { background: #07111dcc; }
+.pauseDialog::backdrop { background: rgb(0 0 0 / 45%); }
+.dialogTitle { font-size: 24px; font-weight: 800; letter-spacing: -.03em; }
+.dialogText { margin: 14px 0 22px; font-size: 14px; line-height: 1.7; color: #bedfea; }
+.dialogActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.dialogHint { margin-top: 18px; font-size: 11px; color: #a7c7d6; }
+.developerName { margin-top: 12px; font-size: 30px; font-weight: 800; color: #c4ed83; }
+.socialLinks { display: flex; justify-content: center; gap: 18px; margin: 22px 0 16px; }
+.socialLinks a { display: grid; justify-items: center; gap: 7px; min-width: 62px; padding: 8px 4px; border-radius: 4px; font-size: 11px; color: #cfeaf4; }
+.socialLinks a:hover { color: #c4ed83; background: #ffffff10; }
+.socialLinks svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.email { margin-bottom: 22px; font-size: 13px; overflow-wrap: anywhere; color: #bedfea; }
+.soundButton, .soundToggle { min-height: 44px; padding: 8px 12px; border-radius: 4px; color: #d9eff7; font: 12px monospace; cursor: pointer; }
+.soundButton { position: absolute; top: max(12px, env(safe-area-inset-top)); right: max(12px, env(safe-area-inset-right)); background: #15364a; }
+.soundToggle { margin-top: 10px; }
+.pauseDialog { padding: 16px; overflow: hidden; }
+.pauseDialog .dialogText { margin: 10px 0 14px; font-size: 13px; line-height: 1.5; }
+.pauseDialog .primary, .pauseDialog .secondary { padding-inline: 8px; }
+.pauseDialog .soundToggle { min-height: 32px; margin-top: 12px; padding-block: 6px; }
+.pauseDialog .dialogHint { margin-top: 6px; }
+@media (max-height: 560px) {
+  .menuContent { padding-block: 0; }
+  .eyebrow, .intro { display: none; }
+  .title { margin-top: 0; font-size: 30px; }
+  .title span { margin-top: 3px; font-size: 16px; }
+  .menuActions { margin-top: 16px; gap: 10px; }
+  .menuActions :is(.primary, .secondary) { padding-block: 8px; }
+  .help { margin-top: 12px; font-size: 10px; }
+  .developerButton { margin-top: 12px; }
+  .dialog { padding: 16px; }
+  .dialogText { margin: 10px 0 14px; }
+}
+@media (max-height: 400px) {
+  .menu { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .help { display: none; }
+  .developerButton { margin-top: 8px; }
+}
+@media (max-height: 560px) and (max-width: 480px) {
+  .menu { padding-top: max(60px, env(safe-area-inset-top)); }
+  .title { font-size: 26px; }
+}
+@media (max-width: 1024px) and (max-aspect-ratio: 20/27), (pointer: coarse) and (max-aspect-ratio: 20/27) {
+  .pauseDialog { width: min(360px, calc(100dvh - 32px)); max-height: calc(100dvw - 24px); transform: translate(-50%, -50%) rotate(90deg); padding: 16px; }
+  .pauseDialog .dialogText { margin: 10px 0 14px; }
+}

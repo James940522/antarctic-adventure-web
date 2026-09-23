@@ -164,6 +164,29 @@ test("a timed jump actually clears a box through the shared run simulation", () 
   assert.equal(run.player.state.jumpPhase, "grounded");
 });
 
+test("manual pause freezes player, distance, obstacles, elapsed time and averages until resume", () => {
+  const run = new RunSystem();
+  run.update(neutral, 50);
+  const player = { ...run.player.state };
+  const boxes = structuredClone(run.obstacles.boxes);
+  const elapsed = run.elapsedSeconds;
+  const average = run.averageSpeed;
+  assert.equal(run.setPaused(true), true);
+  for (let i = 0; i < 100; i++) run.update({ ...neutral, horizontalAxis: 1, verticalAxis: -1, jumpPressed: true }, 50);
+  assert.deepEqual(run.player.state, player);
+  assert.deepEqual(run.obstacles.boxes, boxes);
+  assert.equal(run.elapsedSeconds, elapsed);
+  assert.equal(run.averageSpeed, average);
+  assert.equal(run.snapshot(false, false).pauseMenuOpen, true);
+  run.setPaused(false);
+  run.update(neutral, 50);
+  assert.ok(run.player.state.distanceTravelled > player.distanceTravelled);
+  run.setPaused(true);
+  run.restart();
+  assert.equal(run.isPaused, false);
+  assert.equal(run.elapsedSeconds, 0);
+});
+
 test("uncapped speed cannot tunnel through rows generated beyond the previous view", () => {
   for (const fps of [30, 60, 144]) {
     const run = new RunSystem(undefined, () => 0.5);

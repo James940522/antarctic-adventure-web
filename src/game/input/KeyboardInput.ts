@@ -2,7 +2,7 @@ import { createDeviceInput, type InputSource } from "./input.types.ts";
 
 const GAME_KEYS = new Set([
   "ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
-  "KeyA", "KeyD", "KeyW", "KeyS", "Space",
+  "KeyA", "KeyD", "KeyW", "KeyS", "Space", "Escape",
 ]);
 
 export class KeyboardInput implements InputSource {
@@ -12,6 +12,7 @@ export class KeyboardInput implements InputSource {
   private jumpPending = false;
   private upPending = false;
   private downPending = false;
+  private pausePending = false;
 
   constructor(target: HTMLElement) {
     this.target = target;
@@ -36,6 +37,7 @@ export class KeyboardInput implements InputSource {
     event.preventDefault();
     // Repeats after losing focus must not re-arm a key that was reset.
     if (event.repeat) return;
+    if (event.code === "Escape" && !this.keys.has("Escape")) this.pausePending = true;
     if (event.code === "Space" && !this.keys.has("Space")) this.jumpPending = true;
     if ((event.code === "ArrowUp" || event.code === "KeyW")
       && !this.keys.has("ArrowUp") && !this.keys.has("KeyW")) this.upPending = true;
@@ -54,6 +56,9 @@ export class KeyboardInput implements InputSource {
   };
 
   read() {
+    this.state.pause = this.keys.has("Escape");
+    this.state.pausePressed = this.pausePending;
+    this.pausePending = false;
     this.state.left = this.keys.has("ArrowLeft") || this.keys.has("KeyA");
     this.state.right = this.keys.has("ArrowRight") || this.keys.has("KeyD");
     this.state.up = this.upPending || this.keys.has("ArrowUp") || this.keys.has("KeyW");
@@ -70,6 +75,7 @@ export class KeyboardInput implements InputSource {
     this.keys.clear();
     this.jumpPending = false;
     this.upPending = this.downPending = false;
+    this.pausePending = this.state.pause = this.state.pausePressed = false;
     this.state.left = this.state.right = this.state.up = this.state.down = false;
     this.state.jump = this.state.jumpPressed = false;
   };

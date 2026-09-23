@@ -2,7 +2,7 @@ import type { GameSnapshot } from "@/game/types/game.types";
 import { formatDistance } from "@/game/utils/formatDistance";
 import styles from "./GameViewport.module.css";
 
-export function GameHud({ run, onRestart }: { run: GameSnapshot; onRestart: () => void }) {
+export function GameHud({ run, onRestart, onPause, onMenu }: { run: GameSnapshot; onRestart: () => void; onPause: () => void; onMenu: () => void }) {
   const gameover = run.status === "gameover";
   // Fast Refresh can briefly retain a snapshot from before average tracking.
   const averageSpeed = run.averageSpeed?.toFixed(1) ?? "—";
@@ -11,7 +11,7 @@ export function GameHud({ run, onRestart }: { run: GameSnapshot; onRestart: () =
   return <div className={`${styles.hud} pointer-events-none absolute inset-0 text-slate-950`}>
     <div className={`${styles.hudTop} absolute inset-x-0 top-0 grid grid-cols-[1fr_1fr_1fr] items-start gap-[1%] bg-gradient-to-b from-slate-950/85 to-slate-950/0 px-[3%] pb-[5%] pt-[2%] text-white`}>
       <div>
-        <p className="text-[clamp(8px,1.3cqw,12px)] font-bold tracking-widest text-cyan-200">ANTARCTIC / 거리 도전</p>
+        <p className="text-[clamp(8px,1.3cqw,12px)] font-bold tracking-widest text-cyan-200">WHITE HORIZON / ANTARCTIC RUN</p>
         <p className="text-[clamp(20px,4cqw,40px)] font-black leading-tight tabular-nums" aria-label={`이동 거리 ${run.distance}미터`}>
           {formatDistance(run.distance)}
         </p>
@@ -29,6 +29,7 @@ export function GameHud({ run, onRestart }: { run: GameSnapshot; onRestart: () =
           속도 {run.speed.toLocaleString()} <span className="font-normal">m/s</span>
         </p>
         <p className="mt-1 text-cyan-100">난이도 {run.boxesPerRow} · 한 줄 최대 {run.boxesPerRow}개</p>
+        {!gameover && !run.pauseMenuOpen && <button type="button" onClick={onPause} aria-label="게임 일시정지" className="pointer-events-auto mt-1 min-h-11 rounded border border-white/30 bg-slate-950/40 px-3 text-xs text-white">Ⅱ 일시정지</button>}
       </div>
     </div>
     {!gameover && !run.paused && arrival && <div role="status" aria-label="랜드마크 도착" className="absolute inset-x-[15%] bottom-[3%] text-center text-slate-900">
@@ -43,9 +44,10 @@ export function GameHud({ run, onRestart }: { run: GameSnapshot; onRestart: () =
         <p className="text-[10px] tabular-nums text-slate-300 sm:text-sm">최고 기록 {(run.bestDistance / 1000).toFixed(3)} km · {bestAverageSpeed !== undefined ? `평균 ${bestAverageSpeed} m/s` : "평균 미측정"}</p>
         <p className="mt-1 text-[9px] text-slate-400 sm:text-xs">평균 속도는 실제 주행 시간 기준 · 정지/일시정지 제외</p>
         <button type="button" onClick={onRestart} className="mt-2 rounded bg-lime-300 px-6 py-1.5 text-xs font-bold text-slate-950 hover:bg-lime-200 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white sm:mt-3 sm:py-2 sm:text-sm">다시 도전</button>
+        <button type="button" onClick={onMenu} className="ml-2 mt-2 rounded border border-white/30 px-4 py-1.5 text-xs text-white sm:mt-3 sm:py-2 sm:text-sm">메인 메뉴</button>
         <p className="mt-2 hidden text-xs text-slate-400 sm:block">화면 선택 후 Space / 패드 남쪽 버튼으로도 재시작</p>
       </div>
-    </div> : run.paused ? <div className="absolute inset-0 grid place-items-center bg-slate-950/20">
+    </div> : run.paused && !run.pauseMenuOpen ? <div className="absolute inset-0 grid place-items-center bg-slate-950/20">
       <p className="rounded bg-slate-950/80 px-4 py-2 text-sm text-white">일시정지 · 이 창으로 돌아오면 계속 달립니다</p>
     </div> : null}
     {run.status === "running" && !run.paused && <div className={`${styles.desktopHint} absolute inset-x-0 bottom-[3%] px-3 text-center text-[clamp(8px,1.3cqw,12px)] font-medium text-slate-600`}>

@@ -56,6 +56,7 @@ export class GameScene extends Scene {
       this.playerView.render(this.run.player.state);
       this.scale.on(Scale.Events.RESIZE, this.resizeViewport, this);
       this.game.events.on(GAME_EVENTS.restart, this.restart, this);
+      this.game.events.on(GAME_EVENTS.pause, this.setPaused, this);
       const debug = new URLSearchParams(window.location.search).get("debugInput");
       if (debug === "1") {
         this.inputDebug = new InputDebugOverlay(this);
@@ -73,8 +74,9 @@ export class GameScene extends Scene {
     const document = this.inputTarget.ownerDocument;
     const active = document.visibilityState !== "hidden" && document.hasFocus();
     const previousStatus = this.run.status;
-    const input = this.controls.update(inputActive && previousStatus !== "celebrating");
-    if (active && previousStatus !== "gameover") {
+    const input = this.controls.update(active && (inputActive || this.run.isPaused));
+    if (this.controls.pausePressed) this.setPaused(!this.run.isPaused);
+    if (active && !this.run.isPaused && previousStatus !== "gameover") {
       const ended = this.run.update(input, this.skipNextDelta ? 0 : delta);
       this.skipNextDelta = false;
       if (previousStatus !== this.run.status) {
@@ -130,6 +132,14 @@ export class GameScene extends Scene {
     this.publishSnapshot();
   }
 
+  private setPaused(paused: boolean): void {
+    if (!this.run?.setPaused(paused)) return;
+    this.controls?.reset();
+    this.skipNextDelta = true;
+    this.nextHudRefresh = 0;
+    this.publishSnapshot();
+  }
+
   private setupInput(): void {
     const keyboard = new KeyboardInput(this.inputTarget);
     const gamepad = new GamepadInput();
@@ -139,6 +149,7 @@ export class GameScene extends Scene {
     this.gamepad = gamepad;
     this.touch = touch;
     this.controls = controls;
+    controls.reset();
 
     // Reset synchronously even if the hidden tab's game loop stops updating.
     const document = this.inputTarget.ownerDocument;
@@ -163,6 +174,7 @@ export class GameScene extends Scene {
       controls.destroy();
       this.scale.off(Scale.Events.RESIZE, this.resizeViewport, this);
       this.game.events.off(GAME_EVENTS.restart, this.restart, this);
+      this.game.events.off(GAME_EVENTS.pause, this.setPaused, this);
       this.courseView?.reset();
       this.landmarks?.reset();
       this.controls = this.keyboard = this.gamepad = this.inputDebug = this.touch = undefined;

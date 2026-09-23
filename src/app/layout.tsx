@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Antarctic Adventure",
+  title: "WHITE HORIZON — ANTARCTIC RUN",
   description: "남극을 달리는 펭귄의 웹 아케이드 게임.",
 };
 

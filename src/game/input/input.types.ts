@@ -12,6 +12,8 @@ export type GameInputState = {
 
 // Digital directions remain separate from analog axes until devices are merged.
 export type DeviceInputState = {
+  pause: boolean;
+  pausePressed: boolean;
   left: boolean;
   right: boolean;
   up: boolean;
@@ -30,6 +32,8 @@ export interface InputSource {
 
 export function createDeviceInput(): DeviceInputState {
   return {
+    pause: false,
+    pausePressed: false,
     left: false,
     right: false,
     up: false,
