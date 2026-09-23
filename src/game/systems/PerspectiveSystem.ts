@@ -3,6 +3,7 @@ import { GAME_SIZE, PLAYER_VIEW, RUN_CONFIG, SCENE_LAYOUT } from "../config/cons
 export class PerspectiveSystem {
   readonly nearHalfWidth = GAME_SIZE.width / 2 - PLAYER_VIEW.screenMargin;
   height: number;
+  // Visibility/spawn horizon only. Speed must never rescale the existing world.
   viewDistance: number = RUN_CONFIG.viewDistance;
 
   constructor(height: number = GAME_SIZE.height) {
@@ -13,7 +14,12 @@ export class PerspectiveSystem {
   get contactY(): number { return this.height * SCENE_LAYOUT.playerYRatio + 34; }
 
   project(courseX: number, relativeDistance: number) {
-    const depth = Math.max(0, Math.min(1.25, 1 - relativeDistance / this.viewDistance));
+    const linearDepth = 1 - relativeDistance / RUN_CONFIG.viewDistance;
+    // Keep the familiar near-field curve. A tangent-matched reciprocal tail lets
+    // high-speed lookahead extend beyond 120m without moving visible objects.
+    const tailDepth = 0.2;
+    const depth = Math.min(1.25, linearDepth >= tailDepth ? linearDepth
+      : tailDepth * tailDepth / (2 * tailDepth - linearDepth));
     const scale = 0.08 + 0.92 * depth * depth;
     return {
       x: GAME_SIZE.width / 2 + courseX * this.nearHalfWidth * scale,

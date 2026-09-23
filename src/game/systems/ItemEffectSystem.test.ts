@@ -71,8 +71,9 @@ test("arrival suspends effects in the contact frame and departure restores the e
     const deltaMs = 1000 / fps;
     const secondsToArrival = deltaMs / 2000;
     const arrivalDistance = landmarks.next!.distance * RUN_CONFIG.unitsPerMeter;
-    const frameMeanSpeed = run.player.state.currentSpeed + PLAYER_CONFIG.baseAcceleration * deltaMs / 2000;
-    Object.assign(run.player.state, { distanceTravelled: arrivalDistance - frameMeanSpeed * secondsToArrival });
+    const distanceToArrival = run.player.state.currentSpeed * secondsToArrival
+      + PLAYER_CONFIG.baseAcceleration * secondsToArrival ** 2 / 2;
+    Object.assign(run.player.state, { distanceTravelled: arrivalDistance - distanceToArrival });
     run.effects.apply("ghost-penguin");
     run.effects.advance(6);
     run.update(neutral, deltaMs);

@@ -1,6 +1,6 @@
 import type { GameObjects, Scene } from "phaser";
 
-import { LANDMARK_CONFIG } from "../config/constants.ts";
+import { LANDMARK_CONFIG, RUN_CONFIG } from "../config/constants.ts";
 import type { LandmarkDefinition } from "../data/landmarks.ts";
 import { PerspectiveSystem } from "./PerspectiveSystem.ts";
 import type { LandmarkRenderer } from "./LandmarkSystem.ts";
@@ -8,7 +8,7 @@ import type { LandmarkRenderer } from "./LandmarkSystem.ts";
 export function projectLandmark(projection: PerspectiveSystem, landmark: LandmarkDefinition, remainingMeters: number) {
   const point = projection.project(
     0,
-    Math.max(0, remainingMeters) / landmark.approachDistance * projection.viewDistance,
+    Math.max(0, remainingMeters) / landmark.approachDistance * RUN_CONFIG.viewDistance,
   );
   const size = LANDMARK_CONFIG.sizes[landmark.size];
   const [, , width, height] = landmark.assetFrame;

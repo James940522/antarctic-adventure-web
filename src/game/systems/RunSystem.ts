@@ -1,5 +1,6 @@
 import { PLAYER_CONFIG, RUN_CONFIG } from "../config/constants.ts";
 import { Player } from "../entities/Player.ts";
+import { speedTimeFraction } from "../entities/speed-motion.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import type { RunRecord } from "../types/run-record.types.ts";
 import { ObstacleSystem } from "./ObstacleSystem.ts";
@@ -84,15 +85,14 @@ export class RunSystem {
     this.player.update(input, delta);
     const destination = this.landmarks.next;
     const destinationDistance = destination ? destination.distance * RUN_CONFIG.unitsPerMeter : Infinity;
-    const travelled = this.player.state.distanceTravelled - previous.distanceTravelled;
     const arrivalFraction = destinationDistance <= this.player.state.distanceTravelled
-      ? Math.max(0, travelled > 0 ? (destinationDistance - previous.distanceTravelled) / travelled : 0) : Infinity;
+      ? speedTimeFraction(this.player.speedMotion!, destinationDistance - previous.distanceTravelled) : Infinity;
     // At uncapped speeds one frame can cross rows outside the previous view.
     // Generate those rows before collision, retaining every obstacle along the sweep.
     this.obstacles.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled), this.player.state.currentSpeed);
     this.items.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled), this.obstacles.items, this.obstacles.viewDistance);
     const hit = this.contacts.resolve(previous, this.player.state, this.player.jumpMotion,
-      delta / 1000, Math.min(1, arrivalFraction), this.obstacles.items, this.items);
+      delta / 1000, Math.min(1, arrivalFraction), this.obstacles.items, this.items, this.player.speedMotion);
     if (hit && hit.fraction <= arrivalFraction) {
       this.player.stopAt(previous, hit.fraction);
       this.player.clearBufferedJump();

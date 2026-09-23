@@ -28,8 +28,8 @@ export class CourseView {
   resize(): void {
     const { ground, projection } = this;
     ground.clear();
-    const farLeft = projection.project(-1.1, this.projection.viewDistance);
-    const farRight = projection.project(1.1, this.projection.viewDistance);
+    const farLeft = projection.project(-1.1, Infinity);
+    const farRight = projection.project(1.1, Infinity);
     const bottomLeft = projection.project(-1.1, -160);
     const bottomRight = projection.project(1.1, -160);
     ground.fillStyle(0xe6f4fa);
@@ -42,8 +42,9 @@ export class CourseView {
 
   render(distance: number, obstacles: readonly Obstacle[]): void {
     this.marks.clear();
-    const spacing = Math.max(120, this.projection.viewDistance / 64);
-    for (let world = Math.floor(distance / spacing) * spacing; world <= distance + this.projection.viewDistance; world += spacing) {
+    // Stable world spacing: changing the lookahead must not slide every snow mark.
+    const spacing = 120;
+    for (let world = Math.floor(distance / spacing) * spacing; world <= distance + RUN_CONFIG.viewDistance; world += spacing) {
       const relative = world - distance;
       for (let x = -1.08; x <= 1.08; x += 2.16) {
         const point = this.projection.project(x, relative);

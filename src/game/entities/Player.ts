@@ -1,6 +1,7 @@
 import { PLAYER_CONFIG } from "../config/constants.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import { getFrameJumpProgress, getJumpHeight, type JumpMotion } from "./jump.ts";
+import { sampleSpeed, type SpeedMotion } from "./speed-motion.ts";
 
 export type PlayerState = {
   courseX: number;
@@ -15,7 +16,7 @@ export type PlayerState = {
 
 // Simulation coordinates never depend on the canvas or CSS size.
 export class Player {
-  private previousSpeedDirection = 0;
+  private frameSpeed: SpeedMotion | null = null;
   private jumpProgress = 0;
   private bufferedJump = false;
   private frameJump: JumpMotion | null = null;
@@ -35,6 +36,7 @@ export class Player {
   }
 
   get jumpMotion(): Readonly<JumpMotion> | null { return this.frameJump; }
+  get speedMotion(): Readonly<SpeedMotion> | null { return this.frameSpeed; }
 
   update(input: Readonly<GameInputState>, deltaMs: number): void {
     if (!Number.isFinite(deltaMs) || deltaMs < 0) return;
@@ -48,16 +50,16 @@ export class Player {
 
     const speedDirection = Math.abs(input.verticalAxis) >= PLAYER_CONFIG.speedAxisThreshold
       ? -Math.sign(input.verticalAxis) : 0;
-    if (speedDirection !== 0 && speedDirection !== this.previousSpeedDirection) {
-      state.selectedSpeed = Math.max(state.baseSpeed, state.selectedSpeed + speedDirection * PLAYER_CONFIG.speedStep);
-    }
-    this.previousSpeedDirection = speedDirection;
-    const speedIncrease = PLAYER_CONFIG.baseAcceleration * seconds;
-    // Integrate the gradual increase with the frame's mean speed, independent of FPS.
-    state.distanceTravelled += (state.selectedSpeed + speedIncrease / 2) * seconds;
-    state.baseSpeed += speedIncrease;
-    state.selectedSpeed += speedIncrease;
-    state.currentSpeed = state.selectedSpeed;
+    this.frameSpeed = {
+      baseSpeed: state.baseSpeed,
+      extraSpeed: Math.max(0, state.selectedSpeed - state.baseSpeed),
+      manualAcceleration: speedDirection * PLAYER_CONFIG.manualAcceleration,
+      seconds,
+    };
+    const speed = sampleSpeed(this.frameSpeed);
+    state.distanceTravelled += speed.distance;
+    state.baseSpeed = speed.baseSpeed;
+    state.currentSpeed = state.selectedSpeed = speed.speed;
 
     // Buffer only a fresh press near landing, never a held button or an early tap.
     if (input.jumpPressed) {
@@ -98,13 +100,14 @@ export class Player {
 
   stopAt(previous: Readonly<PlayerState>, fraction: number): void {
     const state = this.current;
-    // Contact/arrival only consumes part of this frame. Keep manual speed taps intact.
-    const unusedIncrease = (state.baseSpeed - previous.baseSpeed) * (1 - fraction);
-    state.baseSpeed -= unusedIncrease;
-    state.selectedSpeed -= unusedIncrease;
-    state.currentSpeed = state.selectedSpeed;
+    // Integrate both accelerations only until contact, including a mid-frame floor crossing.
+    if (this.frameSpeed) {
+      const speed = sampleSpeed(this.frameSpeed, fraction);
+      state.baseSpeed = speed.baseSpeed;
+      state.currentSpeed = state.selectedSpeed = speed.speed;
+      state.distanceTravelled = previous.distanceTravelled + speed.distance;
+    }
     state.courseX = previous.courseX + (state.courseX - previous.courseX) * fraction;
-    state.distanceTravelled = previous.distanceTravelled + (state.distanceTravelled - previous.distanceTravelled) * fraction;
     if (this.frameJump) {
       this.applyJumpProgress(getFrameJumpProgress(this.frameJump, fraction));
     } else {
@@ -120,13 +123,12 @@ export class Player {
     this.jumpProgress = 0;
     this.clearBufferedJump();
     this.frameJump = null;
-    this.previousSpeedDirection = 0;
+    this.frameSpeed = null;
   }
 
   depart(): void {
     // The celebration view moves to the center before handing steering back.
     this.current.courseX = 0;
     this.current.currentSpeed = this.current.selectedSpeed;
-    this.previousSpeedDirection = 0;
   }
 }

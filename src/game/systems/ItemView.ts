@@ -26,7 +26,7 @@ export class ItemView {
     for (const item of items) {
       const relative = item.distance - distance;
       let view = this.views.get(item.id);
-      // Use the same speed-dependent horizon as spawning and course projection.
+      // Visibility follows spawning; projected position depends only on distance.
       const visible = relative <= this.projection.viewDistance;
       view?.image.setVisible(visible);
       view?.glow.setVisible(visible);

@@ -151,14 +151,11 @@ test("landmark art stays below the HUD and inside the scene at mobile aspect rat
 });
 
 test("30/60/144 FPS stop at exact meters, suppress gameplay for 2.5s, and resume the selected speed", () => {
-  const selectedSpeed = PLAYER_CONFIG.baseSpeed + 10 * PLAYER_CONFIG.speedStep;
+  const selectedSpeed = 940;
   for (const fps of [30, 60, 144]) {
     const h = harness();
     const run = new RunSystem({ distance: 900, averageSpeed: null }, () => 0.5, h.system);
-    for (let i = 0; i < 10; i++) {
-      run.player.update(neutral, 0);
-      run.player.update({ ...neutral, verticalAxis: -1 }, 0);
-    }
+    Object.assign(run.player.state, { selectedSpeed, currentSpeed: selectedSpeed });
     approachFirst(run, fps);
     for (let frame = 0; frame < fps && run.status === "running"; frame++) {
       run.update({ ...neutral, horizontalAxis: 1, jumpPressed: true }, 1000 / fps);

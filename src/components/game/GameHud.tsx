@@ -43,7 +43,7 @@ export function GameHud({ run, onRestart, onPause, onMenu, onRanking, player }: 
       <p className="rounded bg-slate-950/80 px-4 py-2 text-sm text-white">일시정지 · 이 창으로 돌아오면 계속 달립니다</p>
     </div> : null}
     {run.status === "running" && !run.paused && <div className={`${styles.desktopHint} absolute inset-x-0 bottom-[3%] px-3 text-center text-[clamp(8px,1.3cqw,12px)] font-medium text-slate-600`}>
-      {run.inputActive ? "← → 이동 · ↑ ↓ 속도 ±8 m/s · SPACE 점프 · 패드 지원" : "자동 전진 중 · 화면 클릭 또는 Tab으로 조작 시작"}
+      {run.inputActive ? "← → 이동 · ↑ ↓ 누르는 동안 가감속 · SPACE 점프 · 패드 지원" : "자동 전진 중 · 화면 클릭 또는 Tab으로 조작 시작"}
     </div>}
   </div>;
 }

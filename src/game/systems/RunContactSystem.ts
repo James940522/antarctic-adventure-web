@@ -1,6 +1,7 @@
 import { RUN_CONFIG } from "../config/constants.ts";
 import type { PlayerState } from "../entities/Player.ts";
 import type { JumpMotion } from "../entities/jump.ts";
+import type { SpeedMotion } from "../entities/speed-motion.ts";
 import { collisionFraction, firstCollision } from "./CollisionSystem.ts";
 import { ItemEffectSystem } from "./ItemEffectSystem.ts";
 import type { ItemSystem } from "./ItemSystem.ts";
@@ -12,7 +13,7 @@ export class RunContactSystem {
   private readonly exitGrace = new Set<number>();
 
   resolve(from: Readonly<PlayerState>, to: Readonly<PlayerState>, jump: Readonly<JumpMotion> | null,
-    seconds: number, endFraction: number, obstacles: readonly Obstacle[], items: ItemSystem) {
+    seconds: number, endFraction: number, obstacles: readonly Obstacle[], items: ItemSystem, speed?: Readonly<SpeedMotion> | null) {
     for (const id of this.exitGrace) {
       if (!obstacles.some(obstacle => obstacle.id === id && obstacle.distance + RUN_CONFIG.collisionHalfDepth >= from.distanceTravelled)) {
         this.exitGrace.delete(id);
@@ -20,11 +21,11 @@ export class RunContactSystem {
     }
     let cursor = 0;
     while (cursor <= endFraction) {
-      const pickup = items.firstPickup(from, to, jump, [cursor, endFraction]);
+      const pickup = items.firstPickup(from, to, jump, [cursor, endFraction], speed);
       const expiry = seconds > 0 ? cursor + this.effects.nextExpirationSeconds / seconds : Infinity;
       const boundary = Math.min(endFraction, pickup?.fraction ?? Infinity, expiry);
       const hit = this.effects.ignoresObstacles ? null
-        : firstCollision(from, to, obstacles, jump, [cursor, boundary], this.exitGrace);
+        : firstCollision(from, to, obstacles, jump, [cursor, boundary], this.exitGrace, speed);
       // A pickup at the exact same instant wins; earlier hazards still end the run.
       if (hit && (!pickup || hit.fraction < pickup.fraction)) {
         this.effects.advance((hit.fraction - cursor) * seconds);
@@ -34,7 +35,7 @@ export class RunContactSystem {
       this.effects.advance((boundary - cursor) * seconds);
       if (wasIgnoring && !this.effects.ignoresObstacles) {
         for (const obstacle of obstacles) {
-          if (collisionFraction(from, to, obstacle, jump, [boundary, boundary]) !== null) this.exitGrace.add(obstacle.id);
+          if (collisionFraction(from, to, obstacle, jump, [boundary, boundary], speed) !== null) this.exitGrace.add(obstacle.id);
         }
       }
       cursor = boundary;

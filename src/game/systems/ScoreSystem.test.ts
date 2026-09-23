@@ -27,12 +27,12 @@ test("distance and average speed both affect points, with 1km at 14m/s worth 100
 test("time-weighted speed, not the last selected speed, determines score; pause adds nothing", () => {
   const run = new RunSystem();
   for (let i = 0; i < 20; i++) run.update(neutral, 50);
-  run.update({ ...neutral, verticalAxis: -1 }, 0);
-  for (let i = 0; i < 60; i++) run.update(neutral, 50);
+  for (let i = 0; i < 20; i++) run.update({ ...neutral, verticalAxis: -1 }, 50);
+  for (let i = 0; i < 40; i++) run.update(neutral, 50);
   const before = run.snapshot(false, true);
-  assert.ok(Math.abs(before.averageSpeed - 20.02) < 1e-8);
-  assert.equal(before.score, Math.round(before.distance * 20.02 / 14));
-  // Raising the selected speed with no elapsed movement cannot inflate a record.
+  assert.ok(Math.abs(before.averageSpeed - 19.02) < 1e-8);
+  assert.equal(before.score, Math.round(before.distance * 19.02 / 14));
+  // An input with no elapsed movement cannot inflate a record.
   run.update({ ...neutral, verticalAxis: -1 }, 0);
   assert.equal(run.snapshot(false, true).score, before.score);
   run.setPaused(true);
@@ -43,10 +43,7 @@ test("time-weighted speed, not the last selected speed, determines score; pause 
 test("collision finalizes one score at every frame rate and the payload uses that score", () => {
   for (const fps of [20, 30, 60, 144]) {
     const run = new RunSystem();
-    for (let i = 0; i < 2; i++) {
-      run.update(neutral, 0);
-      run.update({ ...neutral, verticalAxis: -1 }, 0);
-    }
+    Object.assign(run.player.state, { selectedSpeed: 300, currentSpeed: 300 });
     run.obstacles.items.splice(0, run.obstacles.items.length, createObstacle(1, "supply-crate", 3, 1000));
     for (let i = 0; i < fps * 4; i++) run.update(neutral, 1000 / fps);
     const result = run.snapshot(false, true);

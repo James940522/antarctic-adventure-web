@@ -1,6 +1,7 @@
 import { PLAYER_CONFIG, RUN_CONFIG } from "../config/constants.ts";
 import type { PlayerState } from "../entities/Player.ts";
 import { getFrameJumpProgress, getJumpHeight, type JumpMotion } from "../entities/jump.ts";
+import { speedTimeFraction, type SpeedMotion } from "../entities/speed-motion.ts";
 import type { Obstacle } from "./ObstacleSystem.ts";
 
 export type ContactVolume = {
@@ -15,8 +16,9 @@ export type ContactRange = readonly [start: number, end: number];
 // Shared geometry for pickups and hazards; each caller decides what contact does.
 // A range preserves the original jump arc when an effect changes mid-frame.
 export function contactFraction(from: Readonly<PlayerState>, to: Readonly<PlayerState>, target: ContactVolume,
-  jump?: Readonly<JumpMotion> | null, range: ContactRange = [0, 1]): number | null {
-  let [enter, leave] = range;
+  jump?: Readonly<JumpMotion> | null, range: ContactRange = [0, 1], speed?: Readonly<SpeedMotion> | null): number | null {
+  let enter = 0;
+  let leave = 1;
   const clip = (start: number, end: number, min: number, max: number): boolean => {
     const change = end - start;
     if (change === 0) return start >= min && start <= max;
@@ -29,6 +31,14 @@ export function contactFraction(from: Readonly<PlayerState>, to: Readonly<Player
   const halfWidth = target.halfWidth + PLAYER_CONFIG.collisionHalfWidth;
   if (!clip(from.distanceTravelled, to.distanceTravelled,
     target.distance - target.halfDepth, target.distance + target.halfDepth)) return null;
+  if (speed && speed.seconds > 0) {
+    const distance = to.distanceTravelled - from.distanceTravelled;
+    enter = speedTimeFraction(speed, distance * enter);
+    leave = speedTimeFraction(speed, distance * leave);
+  }
+  enter = Math.max(enter, range[0]);
+  leave = Math.min(leave, range[1]);
+  if (enter > leave) return null;
   if (!clip(from.courseX, to.courseX, target.courseX - halfWidth, target.courseX + halfWidth)) return null;
   if (jump) {
     // Solve the actual parabola inside the overlapping distance/X interval.
@@ -48,19 +58,19 @@ export function contactFraction(from: Readonly<PlayerState>, to: Readonly<Player
 }
 
 export function collisionFraction(from: Readonly<PlayerState>, to: Readonly<PlayerState>, obstacle: Obstacle,
-  jump?: Readonly<JumpMotion> | null, range?: ContactRange): number | null {
+  jump?: Readonly<JumpMotion> | null, range?: ContactRange, speed?: Readonly<SpeedMotion> | null): number | null {
   return contactFraction(from, to, {
     courseX: obstacle.courseX, distance: obstacle.distance,
     halfWidth: obstacle.collisionHalfWidth, halfDepth: RUN_CONFIG.collisionHalfDepth, height: obstacle.collisionHeight,
-  }, jump, range);
+  }, jump, range, speed);
 }
 
 export function firstCollision(from: Readonly<PlayerState>, to: Readonly<PlayerState>, obstacles: readonly Obstacle[],
-  jump?: Readonly<JumpMotion> | null, range?: ContactRange, ignored?: ReadonlySet<number>) {
+  jump?: Readonly<JumpMotion> | null, range?: ContactRange, ignored?: ReadonlySet<number>, speed?: Readonly<SpeedMotion> | null) {
   let earliest: { fraction: number; obstacle: Obstacle } | null = null;
   for (const obstacle of obstacles) {
     if (ignored?.has(obstacle.id)) continue;
-    const fraction = collisionFraction(from, to, obstacle, jump, range);
+    const fraction = collisionFraction(from, to, obstacle, jump, range, speed);
     if (fraction !== null && (!earliest || fraction < earliest.fraction)) earliest = { fraction, obstacle };
   }
   return earliest;

@@ -36,8 +36,9 @@ export class ObstacleSystem {
 
   update(distance: number, travelEnd = distance, currentSpeed: number = PLAYER_CONFIG.baseSpeed): void {
     const speed = Math.max(OBSTACLE_CONFIG.escapeSpeedMetersPerSecond * RUN_CONFIG.unitsPerMeter, currentSpeed);
-    // At high speeds the horizon must give enough time to recognize a jump-only wall.
-    this.viewDistance = Math.max(RUN_CONFIG.viewDistance,
+    // Reveal farther rows at high speed, but never hide them again when braking.
+    // Projection remains fixed; only the generation/visibility horizon expands.
+    this.viewDistance = Math.max(this.viewDistance,
       speed * (PLAYER_CONFIG.jumpDurationSeconds + OBSTACLE_CONFIG.escapeReactionSeconds + 0.5));
     if (this.nextId === 0) {
       this.nextGroupDistance = Math.max(this.nextGroupDistance,

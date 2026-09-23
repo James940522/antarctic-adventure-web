@@ -66,47 +66,40 @@ test("touch and keyboard merge without duplicate jump or losing digital priority
   assert.equal(manager.update().jump, true);
 });
 
-test("speed taps change speed once, while holding does not auto-repeat", () => {
+test("holding touch speed controls accelerates continuously and short taps are retained", () => {
   const touch = new TouchInput();
   const manager = new InputManager(idle(), idle(), touch);
   const player = new Player();
   touch.press(1, "up");
   for (let i = 0; i < 30; i++) player.update(manager.update(), 20);
-  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - PLAYER_CONFIG.speedStep) < 1e-8);
+  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - 0.6 * PLAYER_CONFIG.manualAcceleration) < 1e-8);
   touch.release(1); player.update(manager.update(), 20);
   touch.press(2, "up"); touch.release(2);
   player.update(manager.update(), 20);
-  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - 2 * PLAYER_CONFIG.speedStep) < 1e-8);
+  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - 0.62 * PLAYER_CONFIG.manualAcceleration) < 1e-8);
   player.update(manager.update(), 20);
   touch.press(3, "down"); touch.release(3);
   player.update(manager.update(), 20);
-  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - PLAYER_CONFIG.speedStep) < 1e-8);
+  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - 0.6 * PLAYER_CONFIG.manualAcceleration) < 1e-8);
 });
 
-test("either hand can accelerate repeatedly, while simultaneous duplicate buttons count once", () => {
+test("duplicate held speed buttons count once, opposites cancel, and reset clears acceleration", () => {
   const touch = new TouchInput();
   const manager = new InputManager(idle(), idle(), touch);
   const player = new Player();
   touch.press(1, "up"); touch.press(2, "up");
-  player.update(manager.update(), 0);
+  player.update(manager.update(), 50);
   touch.release(1);
-  player.update(manager.update(), 0);
-  assert.equal(player.state.selectedSpeed, 220);
-  touch.release(2);
-  player.update(manager.update(), 0);
-  for (let i = 0; i < 10; i++) {
-    touch.press(i % 2 + 1, "up"); touch.release(i % 2 + 1);
-    player.update(manager.update(), 0);
-    player.update(manager.update(), 0);
-  }
-  assert.equal(player.state.selectedSpeed, 1020);
-  touch.press(3, "up"); touch.press(4, "down");
-  player.update(manager.update(), 0);
-  assert.equal(player.state.selectedSpeed, 1020);
-  manager.reset();
-  player.update(manager.update(), 0);
+  player.update(manager.update(), 50);
+  assert.ok(Math.abs(player.state.selectedSpeed - 148.01) < 1e-8);
+  touch.press(3, "down");
+  player.update(manager.update(), 50);
   assert.equal(manager.state.verticalAxis, 0);
-  assert.equal(player.state.selectedSpeed, 1020);
+  assert.ok(Math.abs(player.state.selectedSpeed - 148.015) < 1e-8);
+  manager.reset();
+  player.update(manager.update(), 50);
+  assert.equal(manager.state.verticalAxis, 0);
+  assert.ok(Math.abs(player.state.selectedSpeed - 148.02) < 1e-8);
 });
 
 function fixture() {

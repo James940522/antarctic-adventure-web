@@ -26,12 +26,9 @@ function close(actual: number, expected: number) {
   assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} != ${expected}`);
 }
 
+// Seed high-speed jump fixtures independently of the control scheme.
 function accelerateTo(player: Player, speed: number) {
-  for (let current = 14; current < speed; current += 8) {
-    player.update({ ...neutral, verticalAxis: -1 }, 0);
-    player.update(neutral, 0);
-  }
-  close(player.state.currentSpeed, speed * 10);
+  Object.assign(player.state, { currentSpeed: speed * 10, selectedSpeed: speed * 10 });
 }
 
 test("neutral input starts at 14m/s and gradually gains 0.6m/s per driving minute at every FPS", () => {
@@ -50,14 +47,15 @@ test("neutral input starts at 14m/s and gradually gains 0.6m/s per driving minut
   }
 });
 
-test("a partial-frame stop keeps only elapsed speed growth and preserves a fresh manual tap", () => {
+test("a partial-frame stop integrates both accelerations only until contact", () => {
   const player = new Player();
   const previous = { ...player.state };
   player.update({ ...neutral, verticalAxis: -1 }, 50);
   player.stopAt(previous, 0.25);
   close(player.state.baseSpeed, 140.00125);
-  close(player.state.selectedSpeed, 220.00125);
-  close(player.state.currentSpeed, 220.00125);
+  close(player.state.selectedSpeed, 141.00125);
+  close(player.state.currentSpeed, 141.00125);
+  close(player.state.distanceTravelled, 140 * 0.0125 + 80.1 * 0.0125 ** 2 / 2);
 });
 
 test("held directions stop at both course edges and reverse immediately", () => {
@@ -80,30 +78,52 @@ test("analog strength scales steering while the vertical axis adjusts speed", ()
   advance(full, 0.25, { ...neutral, horizontalAxis: 1, verticalAxis: -1 });
   advance(half, 0.25, { ...neutral, horizontalAxis: 0.5, verticalAxis: -0.5 });
   close(half.state.courseX, full.state.courseX / 2);
-  close(half.state.selectedSpeed, half.state.baseSpeed + PLAYER_CONFIG.speedStep);
-  close(full.state.selectedSpeed, full.state.baseSpeed + PLAYER_CONFIG.speedStep);
+  close(half.state.selectedSpeed, half.state.baseSpeed + (PLAYER_CONFIG.manualAcceleration * 0.25));
+  close(full.state.selectedSpeed, full.state.baseSpeed + (PLAYER_CONFIG.manualAcceleration * 0.25));
 });
 
-test("manual speed steps are uncapped, retain their offset on release, and brake to the growing minimum", () => {
+test("held speed control is uncapped, retains its offset on release, and brakes to the growing minimum", () => {
+  for (const fps of [20, 30, 60, 144]) {
+    const player = new Player();
+    const up = { ...neutral, verticalAxis: -1 };
+    const down = { ...neutral, verticalAxis: 1 };
+    advance(player, 1, up, fps);
+    close(player.state.currentSpeed, 220.1);
+    close(player.state.distanceTravelled, 180.05);
+    advance(player, 1, neutral, fps);
+    close(player.state.currentSpeed, 220.2);
+    advance(player, 120, up, fps);
+    close(player.state.currentSpeed, 9832.2);
+    advance(player, 121.03, down, fps);
+    close(player.state.currentSpeed, player.state.baseSpeed);
+    close(player.state.baseSpeed, 164.303);
+    advance(player, 1, down, fps);
+    close(player.state.currentSpeed, 164.403);
+  }
+});
+
+test("short taps and zero-time frames cannot create instantaneous speed steps", () => {
   const player = new Player();
-  const up = { ...neutral, verticalAxis: -1 };
-  const down = { ...neutral, verticalAxis: 1 };
-  advance(player, 1, up);
-  close(player.state.selectedSpeed, player.state.baseSpeed + PLAYER_CONFIG.speedStep);
-  close(player.state.distanceTravelled, 220.05);
-  player.update(neutral, 0);
-  player.update(up, 0);
-  close(player.state.selectedSpeed, player.state.baseSpeed + 2 * PLAYER_CONFIG.speedStep);
-  for (let i = 0; i < 1000; i++) { player.update(neutral, 0); player.update(up, 0); }
-  const selected = player.state.baseSpeed + 1002 * PLAYER_CONFIG.speedStep;
-  close(player.state.currentSpeed, selected);
-  advance(player, 1);
-  close(player.state.currentSpeed, selected + PLAYER_CONFIG.baseAcceleration);
-  for (let i = 0; i < 1010; i++) { player.update(neutral, 0); player.update(down, 0); }
-  assert.equal(player.state.selectedSpeed, player.state.baseSpeed);
-  close(player.state.currentSpeed, 140.2);
-  advance(player, 1);
-  close(player.state.currentSpeed, 140.3);
+  for (let i = 0; i < 100; i++) player.update({ ...neutral, verticalAxis: -1 }, 0);
+  close(player.state.currentSpeed, 140);
+  player.update({ ...neutral, verticalAxis: -1 }, 10);
+  close(player.state.currentSpeed, 140.801);
+  player.update(neutral, 10);
+  close(player.state.currentSpeed, 140.802);
+  player.update({ ...neutral, verticalAxis: 1 }, 10);
+  close(player.state.currentSpeed, 140.003);
+});
+
+test("braking that reaches the floor partway through a frame integrates both time segments", () => {
+  const player = new Player();
+  Object.assign(player.state, { currentSpeed: 142, selectedSpeed: 142 });
+  const previous = { ...player.state };
+  player.update({ ...neutral, verticalAxis: 1 }, 50);
+  close(player.state.currentSpeed, 140.005);
+  close(player.state.distanceTravelled, 7.025125);
+  player.stopAt(previous, 0.25);
+  close(player.state.currentSpeed, 141.00125);
+  close(player.state.distanceTravelled, 142 * 0.0125 - 79.9 * 0.0125 ** 2 / 2);
 });
 
 test("a short jump tap reaches the apex and lands while horizontal movement continues", () => {
@@ -161,19 +181,15 @@ test("accelerating or braking midair changes distance without changing the jump 
   player.update({ ...neutral, jumpPressed: true }, 0);
   advance(player, 0.2);
   close(player.state.jumpHeight, 112.5);
-  player.update({ ...neutral, verticalAxis: 1 }, 0);
-  close(player.state.currentSpeed, 1660.02);
+  advance(player, 0.2, { ...neutral, verticalAxis: 1 });
+  close(player.state.currentSpeed, 1724.04);
+  close(player.state.jumpHeight, 150);
+  advance(player, 0.2, { ...neutral, verticalAxis: -1 });
+  close(player.state.currentSpeed, 1740.06);
   close(player.state.jumpHeight, 112.5);
-  close(player.state.jumpElapsedSeconds, 0.2);
   advance(player, 0.2);
-  close(player.state.jumpHeight, 150);
-  player.update({ ...neutral, verticalAxis: -1 }, 0);
-  close(player.state.currentSpeed, 1740.04);
-  close(player.state.jumpHeight, 150);
-  close(player.state.jumpElapsedSeconds, 0.4);
-  advance(player, 0.4);
   assert.equal(player.state.jumpPhase, "grounded");
-  close(player.state.distanceTravelled, (174 * 0.6 + 166 * 0.2) * 10 + 0.5 * PLAYER_CONFIG.baseAcceleration * 0.8 ** 2);
+  close(player.state.distanceTravelled, 1740 * 0.8 - 3.2 + 0.5 * PLAYER_CONFIG.baseAcceleration * 0.8 ** 2);
 });
 
 test("a fresh press in the final 0.12 seconds queues one jump without restarting the falling arc", () => {
@@ -262,8 +278,8 @@ test("invalid deltas do nothing and a long frame advances all simulation by only
   player.update(input, 30_000);
   close(player.state.courseX, 0.07);
   close(player.state.baseSpeed, 140.005);
-  close(player.state.currentSpeed, 220.005);
-  close(player.state.distanceTravelled, 11.000125);
+  close(player.state.currentSpeed, 144.005);
+  close(player.state.distanceTravelled, 7.100125);
   close(player.state.jumpElapsedSeconds, 0.05);
 });
 

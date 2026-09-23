@@ -3,6 +3,7 @@ import { isLandmarkClearDistance } from "../data/landmarks.ts";
 import { ITEM_CONFIG, ITEM_DEFINITIONS, ITEM_TYPES, type GameItem, type ItemType } from "../data/items.ts";
 import type { PlayerState } from "../entities/Player.ts";
 import type { JumpMotion } from "../entities/jump.ts";
+import type { SpeedMotion } from "../entities/speed-motion.ts";
 import { contactFraction, type ContactRange } from "./CollisionSystem.ts";
 import type { Obstacle } from "./ObstacleSystem.ts";
 
@@ -42,14 +43,15 @@ export class ItemSystem {
     }
   }
 
-  firstPickup(from: Readonly<PlayerState>, to: Readonly<PlayerState>, jump: Readonly<JumpMotion> | null, range: ContactRange) {
+  firstPickup(from: Readonly<PlayerState>, to: Readonly<PlayerState>, jump: Readonly<JumpMotion> | null, range: ContactRange,
+    speed?: Readonly<SpeedMotion> | null) {
     let first: { item: GameItem; fraction: number } | null = null;
     for (const item of this.items) {
       const definition = ITEM_DEFINITIONS[item.type];
       const fraction = contactFraction(from, to, {
         courseX: item.courseX, distance: item.distance,
         halfWidth: definition.pickupHalfWidth, halfDepth: ITEM_CONFIG.pickupHalfDepth, height: definition.pickupHeight,
-      }, jump, range);
+      }, jump, range, speed);
       if (fraction !== null && (!first || fraction < first.fraction)) first = { item, fraction };
     }
     return first;

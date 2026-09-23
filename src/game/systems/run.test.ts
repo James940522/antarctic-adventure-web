@@ -68,10 +68,7 @@ test("a hidden or unmeasured viewport uses the default render size", () => {
 test("the same obstacle approaches faster after accelerating beyond the former speed cap", () => {
   const slow = new Player();
   const fast = new Player();
-  for (let i = 0; i < 6; i++) {
-    fast.update(neutral, 0);
-    fast.update({ ...neutral, verticalAxis: -1 }, 0);
-  }
+  Object.assign(fast.state, { selectedSpeed: 620, currentSpeed: 620 });
   for (let i = 0; i < 60; i++) { slow.update(neutral, 1000 / 60); fast.update(neutral, 1000 / 60); }
   const projection = new PerspectiveSystem();
   assert.ok(projection.project(0, 900 - fast.state.distanceTravelled).y
@@ -118,17 +115,53 @@ test("average speed uses unrounded distance and time weighting, independent of F
     close(run.averageSpeed, 14.000005);
     run.restart();
     for (let i = 0; i < fps; i++) run.update(neutral, 1000 / fps);
-    run.update({ ...neutral, verticalAxis: -1 }, 0);
-    for (let i = 0; i < fps * 3; i++) run.update(neutral, 1000 / fps);
-    // Manual steps contribute 80m; gradual acceleration adds 0.08m over 4s.
-    close(run.averageSpeed, 20.02);
+    for (let i = 0; i < fps; i++) run.update({ ...neutral, verticalAxis: -1 }, 1000 / fps);
+    for (let i = 0; i < fps * 2; i++) run.update(neutral, 1000 / fps);
+    // Held acceleration contributes 20m; passive acceleration adds 0.08m over 4s.
+    close(run.averageSpeed, 19.02);
     const average = run.averageSpeed;
     run.update({ ...neutral, verticalAxis: -1 }, 0);
-    close(run.snapshot(false, true).speed, 30.04);
+    close(run.snapshot(false, true).speed, 22.04);
     assert.equal(run.averageSpeed, average);
     assert.equal(run.snapshot(true, false).averageSpeed, average);
     assert.equal(run.snapshot(false, true).bestAverageSpeed, average);
     assert.deepEqual(run.bestRecord, { distance: 0, averageSpeed: null });
+  }
+});
+
+test("held acceleration and braking finalize the same contact time, speed and average at every FPS", () => {
+  for (const [initialSpeed, verticalAxis, acceleration] of [[140, -1, 80.1], [220, 1, -79.9]]) {
+    const expectedSpeed = Math.sqrt(initialSpeed ** 2 + 2 * acceleration * 84);
+    const expectedTime = 168 / (initialSpeed + expectedSpeed);
+    for (const fps of [20, 30, 60, 144]) {
+      const run = new RunSystem();
+      Object.assign(run.player.state, { selectedSpeed: initialSpeed, currentSpeed: initialSpeed });
+      run.obstacles.items.push(box);
+      for (let i = 0; i < fps; i++) run.update({ ...neutral, verticalAxis }, 1000 / fps);
+      assert.equal(run.status, "gameover");
+      close(run.player.state.distanceTravelled, 84);
+      close(run.elapsedSeconds, expectedTime);
+      close(run.player.state.currentSpeed, expectedSpeed);
+      close(run.averageSpeed, (initialSpeed + expectedSpeed) / 20);
+    }
+  }
+});
+
+test("held acceleration stops growing at the exact landmark arrival time", () => {
+  const destination = new RunSystem().landmarks.next!.distance * RUN_CONFIG.unitsPerMeter;
+  const expectedTime = 80 / (140 + Math.sqrt(140 ** 2 + 2 * 80.1 * 40));
+  for (const fps of [20, 30, 60, 144]) {
+    const run = new RunSystem();
+    Object.assign(run.player.state, { distanceTravelled: destination - 40 });
+    for (let i = 0; i < fps && run.status === "running"; i++) run.update({ ...neutral, verticalAxis: -1 }, 1000 / fps);
+    assert.equal(run.status, "celebrating");
+    close(run.elapsedSeconds, expectedTime);
+    close(run.player.state.distanceTravelled, destination);
+    close(run.player.state.baseSpeed, 140 + 0.1 * expectedTime);
+    close(run.player.state.selectedSpeed, 140 + 80.1 * expectedTime);
+    const frozen = { ...run.player.state };
+    run.update({ ...neutral, verticalAxis: -1 }, 50);
+    assert.deepEqual(run.player.state, frozen);
   }
 });
 
@@ -202,8 +235,8 @@ test("uncapped speed cannot tunnel through rows generated beyond the previous vi
     assert.equal(run.status, "gameover");
     assert.ok(Math.abs(run.player.state.distanceTravelled - (unseenBox.distance - RUN_CONFIG.collisionHalfDepth)) < 1e-8);
     assert.equal(run.bestRecord.distance, Math.floor(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter));
-    // Continuous collision sweeps use the mean speed of this frame.
-    close(run.averageSpeed, (2500 * fps + PLAYER_CONFIG.baseAcceleration / fps / 2) / RUN_CONFIG.unitsPerMeter);
+    // Average includes only the time before the swept contact.
+    close(run.averageSpeed, averageAfterDistance(2500 * fps, run.player.state.distanceTravelled));
     close(run.player.state.baseSpeed, 140 + PLAYER_CONFIG.baseAcceleration * run.elapsedSeconds);
   }
 });
@@ -223,7 +256,7 @@ test("restart clears distance, speed, jump and old obstacles while retaining the
   assert.equal(run.status, "gameover");
   assert.equal(run.bestRecord.distance, 50);
   assert.equal(run.bestRecord.averageSpeed, 27.4);
-  close(run.snapshot(false, true).averageSpeed, averageAfterDistance(220, 84), 1e-6);
+  close(run.snapshot(false, true).averageSpeed, (140 + Math.sqrt(140 ** 2 + 2 * 80.1 * 84)) / 20, 1e-6);
   assert.equal(run.snapshot(false, true).bestAverageSpeed, 27.4);
   const oldBoxes = run.obstacles;
   run.restart();

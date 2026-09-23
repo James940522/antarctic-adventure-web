@@ -28,7 +28,7 @@ export const PLAYER_CONFIG = {
   lateralSpeed: 1.4, // Normalized course units / second.
   baseSpeed: 140, // Initial world units / second (14 m/s).
   baseAcceleration: 0.1, // World units / second²: +0.6 m/s per minute of active driving.
-  speedStep: 80, // Each fresh up/down press changes speed by 8 m/s, without a ceiling.
+  manualAcceleration: 80, // Held up/down changes the manual offset by 8 m/s per second.
   speedAxisThreshold: 0.5,
   collisionHalfWidth: 0.06,
   jumpDurationSeconds: 0.8, // Keep the same readable arc at every running speed.
