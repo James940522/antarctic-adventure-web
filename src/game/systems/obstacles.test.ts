@@ -71,7 +71,7 @@ test("all thirteen PNGs have valid frames, configured proportions and jumpable l
     assert.equal(png.subarray(1, 4).toString(), "PNG");
     const [x, y, width, height] = def.assetFrame;
     assert.ok(x >= 0 && y >= 0 && x + width <= png.readUInt32BE(16) && y + height <= png.readUInt32BE(20));
-    assert.ok(Math.abs(def.visualWidth / def.visualHeight - width / (height * (def.visualHeightScale ?? 1))) < 1e-9);
+    assert.ok(Math.abs(def.visualWidth / def.visualHeight - width / height) < 1e-9);
     if (id === "barricade") assert.ok(def.visualHeight < PLAYER_CONFIG.jumpHeight);
     assert.ok(def.collisionHalfWidth * 2 * nearHalfWidth < def.visualWidth);
     assert.ok(def.collisionHeight < def.visualHeight && def.collisionHeight < PLAYER_CONFIG.jumpHeight);

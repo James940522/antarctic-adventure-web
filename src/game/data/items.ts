@@ -13,6 +13,16 @@ export const ITEM_CONFIG = {
   pickupHalfDepth: 20,
 } as const;
 
+export const ITEM_VIEW_CONFIG = {
+  minWidth: 32, // Logical pixels: keep the pickup readable at the horizon.
+  pulseSeconds: 1.8,
+  borderWidth: 1,
+  minSparkleRadius: 6,
+  haloColor: 0xff3548,
+  backingColor: 0x632638,
+  sparkleColor: 0xff5262,
+} as const;
+
 export const GHOST_CONFIG = {
   durationSeconds: 10,
   warningSeconds: 5,

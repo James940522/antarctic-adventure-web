@@ -118,7 +118,7 @@ export class GameScene extends Scene {
     if (this.projection) this.projection.viewDistance = this.run.obstacles.viewDistance;
     if (this.obstacleDebug) this.obstacleDebugText?.setText(this.obstacleDebug.label(this.run));
     this.courseView?.render(this.run.player.state.distanceTravelled, this.run.obstacles.items);
-    this.itemView?.render(this.run.player.state.distanceTravelled, this.run.items.items, this.run.effects.ghostSeconds);
+    this.itemView?.render(this.run.player.state.distanceTravelled, this.run.items.items, this.run.effects.ghostSeconds, this.run.elapsedSeconds);
     this.playerView?.render(this.run.player.state, this.landmarks?.celebrationElapsedSeconds ?? null, this.run.effects.ghostSeconds);
     this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state, this.landmarks);
     if (time >= this.nextHudRefresh) {
