@@ -73,7 +73,11 @@ export class RunSystem {
     if (this.ended || this.manualPause || !Number.isFinite(deltaMs) || deltaMs < 0) return false;
     const delta = Math.min(deltaMs, PLAYER_CONFIG.maxDeltaMs);
     if (this.landmarks.isCelebrating) {
-      if (this.landmarks.advanceCelebration(delta / 1000)) this.player.depart();
+      this.effects.setSuspended(true);
+      if (this.landmarks.advanceCelebration(delta / 1000)) {
+        this.player.depart();
+        this.effects.setSuspended(false);
+      }
       return false;
     }
     const previous = { ...this.player.state };
@@ -107,6 +111,9 @@ export class RunSystem {
       this.elapsedSeconds += delta / 1000 * arrivalFraction;
       this.obstacles.update(destinationDistance);
       this.items.prune(destinationDistance);
+      // Store all effect clocks while suppressing both abilities and visuals.
+      // Do this before the arrival callback/render so the first celebration frame is clean.
+      this.effects.setSuspended(true);
       this.landmarks.update(destinationDistance / RUN_CONFIG.unitsPerMeter);
       return false;
     }

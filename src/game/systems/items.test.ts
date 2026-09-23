@@ -3,7 +3,7 @@ import test from "node:test";
 import { RUN_CONFIG } from "../config/constants.ts";
 import { GHOST_CONFIG, ITEM_CONFIG, ITEM_DEFINITIONS, type GameItem, type ItemDefinition, type ItemType, type ItemEffectType } from "../data/items.ts";
 import { isLandmarkClearDistance } from "../data/landmarks.ts";
-import { OBSTACLE_IDS } from "../data/obstacles.ts";
+import { OBSTACLE_DEFINITIONS, OBSTACLE_IDS } from "../data/obstacles.ts";
 import { Player, type PlayerState } from "../entities/Player.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import { ghostCountdown, ghostOpacity, ItemEffectSystem } from "./ItemEffectSystem.ts";
@@ -22,49 +22,120 @@ const box = (values: Partial<Obstacle> = {}): Obstacle => ({ id: 0, type: "suppl
 function seeded(seed: number) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
 }
-function runWithoutRandomItems() { return new RunSystem(undefined, seeded(5), undefined, () => 1); }
+function runWithoutRandomItems() {
+  const run = new RunSystem(undefined, seeded(5));
+  run.items.update = () => {};
+  return run;
+}
 
-test("distance opportunities enforce rarity, spacing, landmark corridors and bounded live items", () => {
+test("first and subsequent item intervals vary continuously within 3–4km", () => {
+  const gaps = new Set<number>();
+  for (let seed = 1; seed <= 80; seed++) {
+    const items = new ItemSystem(seeded(seed));
+    items.update(0, 0, []);
+    assert.equal(items.items.length, 0);
+    items.update(0, 8000 * RUN_CONFIG.unitsPerMeter - RUN_CONFIG.viewDistance, []);
+    assert.equal(items.items.length, 2);
+    const [first, second] = items.items.map(entry => entry.distance / RUN_CONFIG.unitsPerMeter);
+    for (const gap of [first, second - first]) {
+      assert.ok(gap >= 3000 && gap <= 4000, `unexpected gap: ${gap}`);
+      gaps.add(gap);
+    }
+  }
+  assert.ok(gaps.size > 100, "intervals vary instead of following fixed distance opportunities");
+  assert.ok([...gaps].some(gap => gap % 100 !== 0));
+});
+
+test("rare items preserve safe lanes, landmark corridors and bounded live items over 110km", () => {
   const items = new ItemSystem(seeded(42));
   const obstacles = new ObstacleSystem(seeded(19));
   const seen = new Map<number, GameItem>();
-  for (let distance = 0; distance <= 110_000; distance += 50) {
+  const clearance = ITEM_CONFIG.obstacleClearanceMeters * RUN_CONFIG.unitsPerMeter;
+  for (let distance = 0; distance <= 110_000 * RUN_CONFIG.unitsPerMeter; distance += 500) {
     obstacles.update(distance);
     items.update(distance, distance, obstacles.items);
     assert.ok(items.items.length <= 1);
     for (const entry of items.items) {
       assert.ok(!isLandmarkClearDistance(entry.distance / RUN_CONFIG.unitsPerMeter));
-      assert.ok(entry.distance >= ITEM_CONFIG.firstOpportunityMeters * RUN_CONFIG.unitsPerMeter);
+      assert.ok(entry.distance >= ITEM_CONFIG.minSpawnGapMeters * RUN_CONFIG.unitsPerMeter);
       assert.ok(RUN_CONFIG.lanes.some(lane => lane === entry.courseX));
+      assert.ok(!obstacles.items.some(obstacle =>
+        Math.abs(obstacle.distance - entry.distance) <= clearance
+        && Math.abs(obstacle.courseX - entry.courseX) <= OBSTACLE_DEFINITIONS[obstacle.type].collisionHalfWidth
+          + ITEM_DEFINITIONS[entry.type].pickupHalfWidth,
+      ));
       seen.set(entry.id, entry);
     }
   }
   const spawned = [...seen.values()];
-  assert.ok(spawned.length > 10 && spawned.length < 35, "low probability, not an item at every opportunity");
+  assert.ok(spawned.length >= 26 && spawned.length <= 36, "about one item per 3–4km");
   for (let i = 1; i < spawned.length; i++) {
     assert.ok(spawned[i].distance - spawned[i - 1].distance >= ITEM_CONFIG.minSpawnGapMeters * RUN_CONFIG.unitsPerMeter);
   }
 });
 
-test("spawn decisions are frame-rate independent and avoid the occupied lane including two-cell obstacles", () => {
-  const byCadence = [7, 47, 700].map(step => {
+test("spawn positions and lanes are independent of frame cadence, including high-speed sweeps", () => {
+  const end = 45_000 * RUN_CONFIG.unitsPerMeter;
+  const byCadence = [7, 47, 700, 55_000].map(step => {
     const items = new ItemSystem(seeded(71));
+    const obstacles = new ObstacleSystem(seeded(19));
     const all = new Map<number, GameItem>();
-    for (let distance = 0; distance < 20_000; distance += step) {
-      items.update(distance, Math.min(distance + step, 20_000), []);
+    for (let distance = 0; distance < end; distance += step) {
+      const travelEnd = Math.min(distance + step, end);
+      obstacles.update(distance, travelEnd);
+      items.update(distance, travelEnd, obstacles.items);
       for (const entry of items.items) all.set(entry.id, { ...entry });
     }
     return [...all.values()];
   });
-  assert.deepEqual(byCadence[0], byCadence[1]);
-  assert.deepEqual(byCadence[0], byCadence[2]);
+  assert.ok(byCadence[0].length > 10);
+  for (const sequence of byCadence.slice(1)) assert.deepEqual(sequence, byCadence[0]);
+  const swept = new ItemSystem(() => 0);
+  swept.update(0, 40_000, []);
+  const pickup = swept.firstPickup(state({ courseX: -0.9 }), state({ courseX: -0.9, distanceTravelled: 40_000 }), null, [0, 1]);
+  assert.equal(pickup?.item.distance, 30_000);
+  assert.equal(pickup?.fraction, (30_000 - ITEM_CONFIG.pickupHalfDepth) / 40_000);
+});
+
+test("unsafe positions defer by distance without rerolling or waiting another 3–4km", () => {
+  const firstDistance = ITEM_CONFIG.minSpawnGapMeters * RUN_CONFIG.unitsPerMeter;
+  const firstVisibleDistance = firstDistance - RUN_CONFIG.viewDistance
+    + ITEM_CONFIG.obstacleClearanceMeters * RUN_CONFIG.unitsPerMeter;
   const items = new ItemSystem(() => 0);
-  items.update(1420, 1420, [box({ type: "seal", courseX: -0.75, distance: 2500 })]);
+  items.update(firstVisibleDistance, firstVisibleDistance, [box({ type: "seal", courseX: -0.75, distance: firstDistance })]);
   assert.equal(items.items.length, 1);
   assert.ok(items.items[0].courseX >= -0.3);
-  const blocked = new ItemSystem(() => 0);
-  blocked.update(1420, 1420, RUN_CONFIG.lanes.map((courseX, id) => box({ id, courseX, distance: 2500 })));
+  let randomCalls = 0;
+  const blocked = new ItemSystem(() => { randomCalls++; return 0; });
+  const blockers = RUN_CONFIG.lanes.map((courseX, id) => box({ id, courseX, distance: firstDistance }));
+  blocked.update(firstVisibleDistance, firstVisibleDistance, blockers);
   assert.equal(blocked.items.length, 0);
+  const callsBeforeWaiting = randomCalls;
+  for (let frame = 0; frame < 100; frame++) blocked.update(firstVisibleDistance, firstVisibleDistance, blockers);
+  assert.equal(randomCalls, callsBeforeWaiting);
+  blocked.update(firstVisibleDistance, firstVisibleDistance + 200, blockers);
+  assert.equal(blocked.items[0].distance, firstDistance + 200, "first safe retry is 20m beyond the obstacle");
+  assert.equal(randomCalls, callsBeforeWaiting + 2, "only lane and next interval are sampled after retries");
+
+  const nearLandmark = new ItemSystem(() => 0.3);
+  nearLandmark.update(0, 14_000 * RUN_CONFIG.unitsPerMeter, []);
+  assert.deepEqual(nearLandmark.items.map(entry => entry.distance / RUN_CONFIG.unitsPerMeter), [3300, 6600, 10_170, 13_470]);
+  assert.ok(nearLandmark.items.every(entry => !isLandmarkClearDistance(entry.distance / RUN_CONFIG.unitsPerMeter)));
+});
+
+test("restart clears items and samples a fresh first interval from the starting line", () => {
+  const items = new ItemSystem(seeded(91));
+  items.update(0, 4000 * RUN_CONFIG.unitsPerMeter, []);
+  const firstDistance = items.items[0].distance;
+  items.reset();
+  assert.equal(items.items.length, 0);
+  items.update(0, 0, []);
+  assert.equal(items.items.length, 0);
+  items.update(0, 4000 * RUN_CONFIG.unitsPerMeter, []);
+  assert.equal(items.items.length, 1);
+  assert.equal(items.items[0].id, 0);
+  assert.ok(items.items[0].distance >= 3000 * RUN_CONFIG.unitsPerMeter && items.items[0].distance <= 4000 * RUN_CONFIG.unitsPerMeter);
+  assert.notEqual(items.items[0].distance, firstDistance);
 });
 
 test("pickup uses swept position and jump height; removal prevents collecting twice", () => {
@@ -211,7 +282,8 @@ test("pause and landmark celebrations freeze effects; retry and gameover clear a
   run.setPaused(false);
   run.landmarks.update(run.landmarks.next!.distance);
   run.update(neutral, 50);
-  assert.equal(run.effects.ghostSeconds, 10);
+  assert.equal(run.effects.remainingSeconds("ghost"), 10);
+  assert.equal(run.effects.ghostSeconds, 0);
   run.restart();
   assert.equal(run.effects.ghostSeconds, 0);
   assert.equal(run.items.items.length, 0);

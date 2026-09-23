@@ -3,6 +3,20 @@ import { GHOST_CONFIG, ITEM_DEFINITIONS, type ItemEffectType, type ItemType } fr
 /** Independent effect clocks; acquiring an item never locks out another pickup. */
 export class ItemEffectSystem {
   private readonly remaining = new Map<ItemEffectType, number>();
+  private suspended = false;
+
+  get isSuspended(): boolean { return this.suspended; }
+
+  /** Suspend every effect together without discarding its duration or phase. */
+  setSuspended(suspended: boolean): void { this.suspended = suspended; }
+
+  /** Stored duration, including effects currently suspended for a landmark. */
+  remainingSeconds(type: ItemEffectType): number { return this.remaining.get(type) ?? 0; }
+
+  /** Gameplay and renderers must use this query so suspension applies uniformly. */
+  activeSeconds(type: ItemEffectType): number {
+    return this.suspended ? 0 : this.remainingSeconds(type);
+  }
 
   apply(type: ItemType): void {
     const effect = ITEM_DEFINITIONS[type].effect;
@@ -10,16 +24,17 @@ export class ItemEffectSystem {
     this.remaining.set(effect.type, effect.durationSeconds);
   }
 
-  get ghostSeconds(): number { return this.remaining.get("ghost") ?? 0; }
+  get ghostSeconds(): number { return this.activeSeconds("ghost"); }
   get ignoresObstacles(): boolean { return this.ghostSeconds > 0; }
   get nextExpirationSeconds(): number {
+    if (this.suspended) return Infinity;
     let next = Infinity;
     for (const seconds of this.remaining.values()) next = Math.min(next, seconds);
     return next;
   }
 
   advance(seconds: number): void {
-    if (!Number.isFinite(seconds) || seconds < 0) return;
+    if (this.suspended || !Number.isFinite(seconds) || seconds < 0) return;
     for (const [type, remaining] of this.remaining) {
       const next = remaining - seconds;
       if (next <= 1e-9) this.remaining.delete(type);
@@ -27,7 +42,10 @@ export class ItemEffectSystem {
     }
   }
 
-  reset(): void { this.remaining.clear(); }
+  reset(): void {
+    this.remaining.clear();
+    this.suspended = false;
+  }
 }
 
 export function ghostCountdown(remaining: number): number | null {
