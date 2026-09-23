@@ -16,6 +16,7 @@ export function createGameConfig(
     ...GAME_SIZE,
     height: getViewportHeight(parent.clientWidth, parent.clientHeight),
     backgroundColor: "#62c1ec",
+    pixelArt: true,
     banner: false,
     autoFocus: false,
     audio: { noAudio: true },

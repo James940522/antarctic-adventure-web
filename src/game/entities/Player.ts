@@ -1,5 +1,6 @@
 import { PLAYER_CONFIG } from "../config/constants.ts";
 import type { GameInputState } from "../input/input.types.ts";
+import { getJumpDurationSeconds, getJumpHeight, type JumpMotion } from "./jump.ts";
 
 export type PlayerState = {
   courseX: number;
@@ -14,6 +15,8 @@ export type PlayerState = {
 // Simulation coordinates never depend on the canvas or CSS size.
 export class Player {
   private previousSpeedDirection = 0;
+  private jumpProgress = 0;
+  private frameJump: JumpMotion | null = null;
   private readonly current: PlayerState = {
     courseX: 0,
     currentSpeed: PLAYER_CONFIG.baseSpeed,
@@ -28,9 +31,12 @@ export class Player {
     return this.current;
   }
 
+  get jumpMotion(): Readonly<JumpMotion> | null { return this.frameJump; }
+
   update(input: Readonly<GameInputState>, deltaMs: number): void {
     if (!Number.isFinite(deltaMs) || deltaMs < 0) return;
     const seconds = Math.min(deltaMs, PLAYER_CONFIG.maxDeltaMs) / 1000;
+    this.frameJump = null;
     const state = this.current;
     state.courseX = Math.max(-PLAYER_CONFIG.courseLimit, Math.min(
       PLAYER_CONFIG.courseLimit,
@@ -50,11 +56,19 @@ export class Player {
     if (input.jumpPressed && state.jumpPhase === "grounded") {
       state.jumpPhase = "rising";
       state.jumpElapsedSeconds = 0;
+      this.jumpProgress = 0;
     }
     if (state.jumpPhase === "grounded") return;
 
     state.jumpElapsedSeconds += seconds;
-    const progress = state.jumpElapsedSeconds / PLAYER_CONFIG.jumpDurationSeconds;
+    const progress = this.jumpProgress + seconds / getJumpDurationSeconds(state.currentSpeed);
+    this.frameJump = { startProgress: this.jumpProgress, endProgress: progress };
+    this.applyJumpProgress(progress);
+  }
+
+  private applyJumpProgress(progress: number): void {
+    const state = this.current;
+    this.jumpProgress = progress;
     if (progress >= 1 - 1e-9) {
       state.jumpPhase = "grounded";
       state.jumpElapsedSeconds = 0;
@@ -62,14 +76,20 @@ export class Player {
       return;
     }
     state.jumpPhase = progress < 0.5 - 1e-9 ? "rising" : "falling";
-    state.jumpHeight = 4 * PLAYER_CONFIG.jumpHeight * progress * (1 - progress);
+    state.jumpHeight = getJumpHeight(progress);
   }
 
   stopAt(previous: Readonly<PlayerState>, fraction: number): void {
     const state = this.current;
     state.courseX = previous.courseX + (state.courseX - previous.courseX) * fraction;
     state.distanceTravelled = previous.distanceTravelled + (state.distanceTravelled - previous.distanceTravelled) * fraction;
-    state.jumpHeight = previous.jumpHeight + (state.jumpHeight - previous.jumpHeight) * fraction;
+    if (this.frameJump) {
+      const progressDelta = this.frameJump.endProgress - this.frameJump.startProgress;
+      state.jumpElapsedSeconds = previous.jumpElapsedSeconds + progressDelta * getJumpDurationSeconds(state.currentSpeed) * fraction;
+      this.applyJumpProgress(this.frameJump.startProgress + progressDelta * fraction);
+    } else {
+      state.jumpHeight = previous.jumpHeight + (state.jumpHeight - previous.jumpHeight) * fraction;
+    }
   }
 
   arriveAt(distance: number): void {
@@ -77,6 +97,8 @@ export class Player {
     this.current.currentSpeed = 0;
     this.current.jumpPhase = "grounded";
     this.current.jumpHeight = this.current.jumpElapsedSeconds = 0;
+    this.jumpProgress = 0;
+    this.frameJump = null;
     this.previousSpeedDirection = 0;
   }
 

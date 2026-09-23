@@ -2,7 +2,7 @@ import { AUDIO_TRACKS } from "../config/audio.ts";
 
 export type AudioPort = Pick<HTMLAudioElement, "src" | "currentTime" | "loop" | "volume" | "muted" | "play" | "pause" | "load" | "removeAttribute">;
 
-/** One audio element for both screens; pause preserves position, screen changes reset it. */
+/** One audio element; pause preserves position, screen changes and retries reset it. */
 export class BackgroundMusic {
   private readonly audio: AudioPort;
   private screen: "menu" | "game" = "menu";
@@ -33,6 +33,12 @@ export class BackgroundMusic {
   setActive(active: boolean): void { this.active = active; this.sync(); }
   setMuted(muted: boolean): void { this.audio.muted = muted; this.sync(); }
   unlock(): void { this.unlocked = true; this.sync(); }
+
+  restartGame(): void {
+    if (this.destroyed || this.screen !== "game") return;
+    this.audio.currentTime = 0;
+    this.sync();
+  }
 
   private sync(): void {
     if (this.destroyed) return;

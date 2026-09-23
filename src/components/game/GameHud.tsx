@@ -28,7 +28,7 @@ export function GameHud({ run, onRestart, onPause, onMenu }: { run: GameSnapshot
         <p className="mt-1 font-bold tabular-nums text-lime-300" aria-label={`속도 ${run.speed}미터 매초`}>
           속도 {run.speed.toLocaleString()} <span className="font-normal">m/s</span>
         </p>
-        <p className="mt-1 text-cyan-100">난이도 {run.boxesPerRow} · 한 줄 최대 {run.boxesPerRow}개</p>
+        <p className="mt-1 text-cyan-100">장애물은 점프로 회피</p>
         {!gameover && !run.pauseMenuOpen && <button type="button" onClick={onPause} aria-label="게임 일시정지" className="pointer-events-auto mt-1 min-h-11 rounded border border-white/30 bg-slate-950/40 px-3 text-xs text-white">Ⅱ 일시정지</button>}
       </div>
     </div>

@@ -100,7 +100,7 @@ export class GameScene extends Scene {
     } else {
       this.skipNextDelta = true;
     }
-    this.courseView?.render(this.run.player.state.distanceTravelled, this.run.elapsedSeconds, this.run.obstacles.boxes);
+    this.courseView?.render(this.run.player.state.distanceTravelled, this.run.obstacles.items);
     this.playerView?.render(this.run.player.state, this.landmarks?.celebrationElapsedSeconds ?? null);
     this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state, this.landmarks);
     if (time >= this.nextHudRefresh) {
@@ -129,6 +129,7 @@ export class GameScene extends Scene {
     this.courseView?.reset();
     this.skipNextDelta = true;
     this.nextHudRefresh = 0;
+    this.game.events.emit(GAME_EVENTS.restarted);
     this.publishSnapshot();
   }
 

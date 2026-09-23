@@ -41,7 +41,7 @@ function approachFirst(run: RunSystem, fps: number, targetWorld = firstDestinati
   const frameLimit = Math.ceil(targetWorld / run.player.state.currentSpeed * fps) + fps;
   for (let frame = 0; frame < frameLimit && run.player.state.distanceTravelled < targetWorld; frame++) {
     // Isolate the arrival from earlier obstacles, while retaining real movement/spawning.
-    run.obstacles.boxes.length = 0;
+    run.obstacles.items.length = 0;
     run.update(neutral, 1000 / fps);
   }
 }
@@ -118,11 +118,11 @@ test("pre-spawned rows leave the approach and departure corridor empty for all d
   const endWorld = (finalDestination.distance + 300) * RUN_CONFIG.unitsPerMeter;
   for (let distance = 0; distance <= endWorld; distance += 80) {
     obstacles.update(distance);
-    assert.ok(obstacles.boxes.every(box => !isLandmarkClearDistance(box.distance / RUN_CONFIG.unitsPerMeter)));
+    assert.ok(obstacles.items.every(box => !isLandmarkClearDistance(box.distance / RUN_CONFIG.unitsPerMeter)));
     for (const landmark of LANDMARKS) {
       if (distance >= (landmark.distance - landmark.approachDistance) * RUN_CONFIG.unitsPerMeter
         && distance <= landmark.distance * RUN_CONFIG.unitsPerMeter) {
-        assert.equal(obstacles.boxes.length, 0, `${landmark.id}: image must not hide any obstacle`);
+        assert.equal(obstacles.items.length, 0, `${landmark.id}: image must not hide any obstacle`);
       }
     }
   }
@@ -130,7 +130,7 @@ test("pre-spawned rows leave the approach and departure corridor empty for all d
     const after = (landmark.distance + LANDMARK_CONFIG.departureClearMeters + 40) * RUN_CONFIG.unitsPerMeter;
     const afterObstacles = new ObstacleSystem(() => 0.5);
     afterObstacles.update(after);
-    assert.ok(afterObstacles.boxes.some(box => box.distance > after), "obstacles resume after the safe corridor");
+    assert.ok(afterObstacles.items.some(box => box.distance > after), "obstacles resume after the safe corridor");
   }
 });
 
@@ -219,7 +219,7 @@ test("collision before or exactly at arrival wins, without an arrival callback o
     const h = harness();
     const run = new RunSystem(undefined, () => 0.5, h.system);
     approachFirst(run, 60);
-    run.obstacles.boxes.push({ id: -1, courseX: 0, distance: contactWorld + RUN_CONFIG.collisionHalfDepth, color: 0 });
+    run.obstacles.items.push({ id: -1, courseX: 0, distance: contactWorld + RUN_CONFIG.collisionHalfDepth, type: "supply-crate", startLane: 3 });
     for (let frame = 0; frame < 60; frame++) run.update(neutral, 1000 / 60);
     assert.equal(run.status, "gameover");
     assert.equal(run.player.state.distanceTravelled, contactWorld);
@@ -256,7 +256,7 @@ test("all ten stops occur once and the run continues past the final 100km destin
   const finishWorld = (finalDestination.distance + 1000) * RUN_CONFIG.unitsPerMeter;
   const frameLimit = Math.ceil((finishWorld / run.player.state.currentSpeed + LANDMARKS.length * LANDMARK_CONFIG.celebrationSeconds) / 0.05) + LANDMARKS.length;
   for (let frame = 0; frame < frameLimit && run.player.state.distanceTravelled < finishWorld; frame++) {
-    run.obstacles.boxes.length = 0;
+    run.obstacles.items.length = 0;
     run.update(neutral, 50);
   }
   assert.ok(run.player.state.distanceTravelled >= finishWorld);

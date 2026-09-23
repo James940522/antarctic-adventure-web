@@ -9,6 +9,7 @@ type GameCallbacks = {
   onReady: () => void;
   onError: (error: unknown) => void;
   onSnapshot: (snapshot: GameSnapshot) => void;
+  onRestarted: () => void;
 };
 
 // This entry point must only be imported after the React host mounts.
@@ -19,6 +20,7 @@ export function createGame(parent: HTMLElement, callbacks: GameCallbacks, inputT
         game.events.once(GAME_EVENTS.ready, callbacks.onReady);
         game.events.once(GAME_EVENTS.error, callbacks.onError);
         game.events.on(GAME_EVENTS.snapshot, callbacks.onSnapshot);
+        game.events.on(GAME_EVENTS.restarted, callbacks.onRestarted);
       },
       postBoot(game) {
         const observer = new ResizeObserver(([entry]) => {

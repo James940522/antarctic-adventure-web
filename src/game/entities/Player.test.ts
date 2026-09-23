@@ -107,6 +107,48 @@ test("midair presses are ignored instead of restarting or buffering a jump", () 
   assert.equal(player.state.jumpPhase, "rising");
 });
 
+test("high-speed jumps keep their full height but land within 24m at different frame rates", () => {
+  for (const speed of [14, 22, 30, 62, 126, 254, 1022]) for (const fps of [20, 30, 60, 144]) {
+    const player = new Player();
+    for (let current = 14; current < speed; current += 8) {
+      player.update({ ...neutral, verticalAxis: -1 }, 0);
+      player.update(neutral, 0);
+    }
+    const duration = speed <= 30 ? 0.8 : 24 / speed;
+    player.update({ ...neutral, jumpPressed: true }, 0);
+    advance(player, duration / 2, neutral, fps);
+    close(player.state.jumpHeight, 100);
+    assert.equal(player.state.jumpPhase, "falling");
+    advance(player, duration / 2, neutral, fps);
+    assert.equal(player.state.jumpPhase, "grounded");
+    close(player.state.distanceTravelled, Math.min(speed * 0.8, 24) * 10);
+    advance(player, 0.1, { ...neutral, jump: true }, fps);
+    assert.equal(player.state.jumpPhase, "grounded", "holding must not auto-jump after an early landing");
+    player.update({ ...neutral, jumpPressed: true }, 0);
+    assert.equal(player.state.jumpPhase, "rising");
+  }
+});
+
+test("accelerating or braking midair changes the remaining duration without resetting the arc", () => {
+  const player = new Player();
+  for (let i = 0; i < 6; i++) {
+    player.update({ ...neutral, verticalAxis: -1 }, 0);
+    player.update(neutral, 0);
+  }
+  player.update({ ...neutral, jumpPressed: true }, 0);
+  advance(player, 24 / 62 / 4);
+  close(player.state.jumpHeight, 75);
+  player.update({ ...neutral, verticalAxis: 1 }, 0);
+  close(player.state.jumpHeight, 75);
+  advance(player, 24 / 54 / 4);
+  close(player.state.jumpHeight, 100);
+  player.update({ ...neutral, verticalAxis: -1 }, 0);
+  close(player.state.jumpHeight, 100);
+  advance(player, 24 / 62 / 2);
+  assert.equal(player.state.jumpPhase, "grounded");
+  close(player.state.distanceTravelled, 240);
+});
+
 test("30, 60 and 144 FPS give the same movement, speed, distance and jump timing", () => {
   const results = [30, 60, 144].map((fps) => {
     const player = new Player();

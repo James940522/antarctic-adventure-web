@@ -3,7 +3,7 @@ import { Player } from "../entities/Player.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import type { RunRecord } from "../types/run-record.types.ts";
 import { firstCollision } from "./CollisionSystem.ts";
-import { boxesPerRow, ObstacleSystem } from "./ObstacleSystem.ts";
+import { ObstacleSystem } from "./ObstacleSystem.ts";
 import { LandmarkSystem } from "./LandmarkSystem.ts";
 
 export type RunSnapshot = {
@@ -13,7 +13,6 @@ export type RunSnapshot = {
   averageSpeed: number; // Distance / active driving time, in m/s.
   bestAverageSpeed: number | null;
   speed: number; // Display meters / second.
-  boxesPerRow: number;
   newRecord: boolean;
   paused: boolean;
   pauseMenuOpen: boolean;
@@ -70,9 +69,9 @@ export class RunSystem {
     const arrivalFraction = destinationDistance <= this.player.state.distanceTravelled
       ? Math.max(0, travelled > 0 ? (destinationDistance - previous.distanceTravelled) / travelled : 0) : Infinity;
     // At uncapped speeds one frame can cross rows outside the previous view.
-    // Generate those rows before collision, retaining every box along the sweep.
+    // Generate those rows before collision, retaining every obstacle along the sweep.
     this.obstacles.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled));
-    const hit = firstCollision(previous, this.player.state, this.obstacles.boxes);
+    const hit = firstCollision(previous, this.player.state, this.obstacles.items, this.player.jumpMotion);
     if (hit && hit.fraction <= arrivalFraction) {
       this.player.stopAt(previous, hit.fraction);
       this.elapsedSeconds += delta / 1000 * hit.fraction;
@@ -114,7 +113,6 @@ export class RunSystem {
       status: this.status, distance, bestDistance: best.distance,
       averageSpeed, bestAverageSpeed: best.averageSpeed,
       speed: this.player.state.currentSpeed / RUN_CONFIG.unitsPerMeter,
-      boxesPerRow: boxesPerRow(this.player.state.distanceTravelled),
       newRecord: this.newRecord, paused: paused || this.manualPause, pauseMenuOpen: this.manualPause, inputActive,
     };
   }

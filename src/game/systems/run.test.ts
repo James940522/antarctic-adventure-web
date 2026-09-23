@@ -1,22 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GAME_SIZE, PLAYER_CONFIG, PLAYER_VIEW, RUN_CONFIG } from "../config/constants.ts";
+import { GAME_SIZE, PLAYER_VIEW, RUN_CONFIG } from "../config/constants.ts";
 import { getViewportHeight } from "../config/viewport.ts";
 import { Player, type PlayerState } from "../entities/Player.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import { collisionFraction } from "./CollisionSystem.ts";
-import { boxesPerRow, ObstacleSystem, type BoxObstacle } from "./ObstacleSystem.ts";
+import { ObstacleSystem, type Obstacle } from "./ObstacleSystem.ts";
 import { PerspectiveSystem } from "./PerspectiveSystem.ts";
 import { RecordStore } from "./RecordStore.ts";
 import { RunSystem } from "./RunSystem.ts";
-import { isLandmarkClearDistance } from "../data/landmarks.ts";
 
 const neutral: GameInputState = {
   left: false, right: false, accelerate: false, brake: false, horizontalAxis: 0, verticalAxis: 0,
   jump: false, jumpPressed: false, jumpReleased: false,
 };
 const state = (values: Partial<PlayerState> = {}): PlayerState => ({ ...new Player().state, ...values });
-const box: BoxObstacle = { id: 0, courseX: 0, distance: 100, color: 0xff3ab4 };
+const box: Obstacle = { id: 0, type: "supply-crate", startLane: 3, courseX: 0, distance: 100 };
 function seeded(seed: number) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
 }
@@ -71,50 +70,19 @@ test("the same obstacle approaches faster after accelerating beyond the former s
     > projection.project(0, 900 - slow.state.distanceTravelled).y);
 });
 
-test("difficulty rises from one to six boxes and never fills all seven lanes", () => {
-  assert.deepEqual([0, 1200, 2400, 3600, 4800, 6000, 100000].map(boxesPerRow), [1, 2, 3, 4, 5, 6, 6]);
-});
-
-test("many random courses retain a reachable gap at 30 m/s, with bounded live objects", () => {
-  const halfWidth = RUN_CONFIG.boxHalfWidth + PLAYER_CONFIG.collisionHalfWidth;
-  const availableTime = (RUN_CONFIG.rowSpacing - 2 * RUN_CONFIG.collisionHalfDepth) / (30 * RUN_CONFIG.unitsPerMeter)
-    - RUN_CONFIG.reactionSeconds;
-  const reach = availableTime * PLAYER_CONFIG.lateralSpeed;
-  const seenFirstX = new Set<number>();
-  for (let seed = 1; seed <= 80; seed++) {
-    const obstacles = new ObstacleSystem(seeded(seed));
-    seenFirstX.add(obstacles.boxes[0].courseX);
-    let reachable: number[] = [0];
-    for (let row = 0; row < 100; row++) {
-      const distance = RUN_CONFIG.firstRowDistance + row * RUN_CONFIG.rowSpacing;
-      obstacles.update(Math.max(0, distance - RUN_CONFIG.viewDistance));
-      const boxes = obstacles.boxes.filter((item) => item.distance === distance);
-      assert.equal(boxes.length, isLandmarkClearDistance(distance / RUN_CONFIG.unitsPerMeter) ? 0 : boxesPerRow(distance));
-      assert.ok(obstacles.boxes.length <= 36);
-      for (const item of boxes) assert.ok(Math.abs(item.courseX) <= PLAYER_CONFIG.courseLimit);
-      const safe = RUN_CONFIG.lanes.filter((lane) => boxes.every((item) => Math.abs(item.courseX - lane) > halfWidth));
-      reachable = safe.filter((lane) => reachable.some((previous) => Math.abs(previous - lane) <= reach));
-      assert.ok(reachable.length > 0, `no path: seed ${seed}, row ${row}`);
-      const sorted = [...boxes].sort((a, b) => a.courseX - b.courseX);
-      for (let i = 1; i < sorted.length; i++) assert.ok(sorted[i].courseX - sorted[i - 1].courseX > RUN_CONFIG.boxHalfWidth * 2);
-    }
-  }
-  assert.ok(seenFirstX.size > 50);
-});
-
 test("swept contact catches crossing, side entry and landing without distant false hits", () => {
   assert.equal(collisionFraction(state(), state({ distanceTravelled: 200 }), box), 0.4);
   assert.equal(collisionFraction(state({ courseX: 0.5 }), state({ courseX: 0.5, distanceTravelled: 200 }), box), null);
   assert.equal(collisionFraction(state(), state({ distanceTravelled: 70 }), box), null);
   assert.notEqual(collisionFraction(state({ courseX: 0.5, distanceTravelled: 100 }), state({ distanceTravelled: 100 }), box), null);
   assert.equal(collisionFraction(state({ jumpHeight: 90 }), state({ jumpHeight: 90, distanceTravelled: 200 }), box), null);
-  assert.notEqual(collisionFraction(state({ distanceTravelled: 100, jumpHeight: 90 }), state({ distanceTravelled: 110, jumpHeight: 60 }), box), null);
+  assert.notEqual(collisionFraction(state({ distanceTravelled: 100, jumpHeight: 90 }), state({ distanceTravelled: 110, jumpHeight: 30 }), box), null);
 });
 
 test("collision freezes the exact contact distance and records it only once at different FPS", () => {
   for (const fps of [30, 60, 144]) {
     const run = new RunSystem(undefined, seeded(2));
-    run.obstacles.boxes.splice(0, run.obstacles.boxes.length, box);
+    run.obstacles.items.splice(0, run.obstacles.items.length, box);
     let transitions = 0;
     for (let frame = 0; frame < fps * 2; frame++) transitions += Number(run.update(neutral, 1000 / fps));
     assert.equal(transitions, 1);
@@ -157,7 +125,7 @@ test("average speed uses unrounded distance and time weighting, independent of F
 
 test("a timed jump actually clears a box through the shared run simulation", () => {
   const run = new RunSystem(undefined, seeded(2));
-  run.obstacles.boxes.splice(0, run.obstacles.boxes.length, { ...box, distance: 56 });
+  run.obstacles.items.splice(0, run.obstacles.items.length, { ...box, distance: 56 });
   run.update({ ...neutral, jumpPressed: true }, 0);
   for (let i = 0; i < 60; i++) run.update(neutral, 1000 / 60);
   assert.equal(run.status, "running");
@@ -168,13 +136,13 @@ test("manual pause freezes player, distance, obstacles, elapsed time and average
   const run = new RunSystem();
   run.update(neutral, 50);
   const player = { ...run.player.state };
-  const boxes = structuredClone(run.obstacles.boxes);
+  const boxes = structuredClone(run.obstacles.items);
   const elapsed = run.elapsedSeconds;
   const average = run.averageSpeed;
   assert.equal(run.setPaused(true), true);
   for (let i = 0; i < 100; i++) run.update({ ...neutral, horizontalAxis: 1, verticalAxis: -1, jumpPressed: true }, 50);
   assert.deepEqual(run.player.state, player);
-  assert.deepEqual(run.obstacles.boxes, boxes);
+  assert.deepEqual(run.obstacles.items, boxes);
   assert.equal(run.elapsedSeconds, elapsed);
   assert.equal(run.averageSpeed, average);
   assert.equal(run.snapshot(false, false).pauseMenuOpen, true);
@@ -192,14 +160,14 @@ test("uncapped speed cannot tunnel through rows generated beyond the previous vi
     const run = new RunSystem(undefined, () => 0.5);
     const expected = new ObstacleSystem(() => 0.5);
     expected.update(0, 2500);
-    const unseenBox = expected.boxes.find(item => item.distance > RUN_CONFIG.viewDistance)!;
+    const unseenBox = expected.items.find(item => item.distance > RUN_CONFIG.viewDistance)!;
     assert.ok(unseenBox);
     Object.assign(run.player.state, {
       courseX: unseenBox.courseX,
       selectedSpeed: 2500 * fps,
     });
     // Ignore the already visible row, isolating one first generated this frame.
-    run.obstacles.boxes.length = 0;
+    run.obstacles.items.length = 0;
     assert.equal(run.update(neutral, 1000 / fps), true);
     assert.equal(run.status, "gameover");
     assert.ok(Math.abs(run.player.state.distanceTravelled - (unseenBox.distance - RUN_CONFIG.collisionHalfDepth)) < 1e-8);
@@ -211,14 +179,14 @@ test("uncapped speed cannot tunnel through rows generated beyond the previous vi
 test("fast motion retains existing crossed boxes until collision has been resolved", () => {
   const run = new RunSystem();
   Object.assign(run.player.state, { selectedSpeed: 50000 });
-  run.obstacles.boxes.splice(0, run.obstacles.boxes.length, box);
+  run.obstacles.items.splice(0, run.obstacles.items.length, box);
   assert.equal(run.update(neutral, 50), true);
   assert.equal(run.player.state.distanceTravelled, 80);
 });
 
 test("restart clears distance, speed, jump and old obstacles while retaining the record", () => {
   const run = new RunSystem({ distance: 50, averageSpeed: 27.4 }, seeded(4));
-  run.obstacles.boxes.splice(0, run.obstacles.boxes.length, box);
+  run.obstacles.items.splice(0, run.obstacles.items.length, box);
   for (let i = 0; i < 60; i++) run.update({ ...neutral, verticalAxis: -1 }, 1000 / 60);
   assert.equal(run.status, "gameover");
   assert.equal(run.bestRecord.distance, 50);

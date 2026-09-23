@@ -13,6 +13,7 @@ export const GAME_EVENTS = {
   error: "antarctic:error",
   snapshot: "antarctic:snapshot",
   restart: "antarctic:restart",
+  restarted: "antarctic:restarted",
   pause: "antarctic:pause",
   landmarkArrived: "antarctic:landmark-arrived",
 } as const;
@@ -30,6 +31,7 @@ export const PLAYER_CONFIG = {
   speedAxisThreshold: 0.5,
   collisionHalfWidth: 0.06,
   jumpDurationSeconds: 0.8,
+  jumpMaxDistance: 240, // 24m: finish before the next row even above 30m/s.
   jumpHeight: 100,
   maxDeltaMs: 50,
 } as const;
@@ -46,16 +48,8 @@ export const PLAYER_VIEW = {
 export const RUN_CONFIG = {
   unitsPerMeter: 10,
   viewDistance: 1200,
-  firstRowDistance: 900,
-  rowSpacing: 320,
-  difficultyDistance: 1200,
   lanes: [-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9],
-  laneJitter: 0.025,
-  boxSize: 72,
-  boxHalfWidth: 72 / (2 * (GAME_SIZE.width / 2 - PLAYER_VIEW.screenMargin)),
   collisionHalfDepth: 20,
-  reactionSeconds: 0.35,
-  colors: [0xff3ab4, 0xdfff00, 0x00efd5, 0xb18aff, 0xff982f],
   hudRefreshMs: 100,
   recordKey: "antarctic-adventure:best-run:v2",
   legacyRecordKey: "antarctic-adventure:best-distance:v1",

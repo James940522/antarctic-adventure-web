@@ -9,8 +9,11 @@
 5. **완료:** 시선추적 개발중 안내와 James 개발자 정보 모달. Tab 순환, ESC 닫기, 외부 링크 속성.
 6. **완료:** 제공된 Opening / Main BGM 연결, 단일 audio 요소의 전환·반복·일시정지·재개·음소거.
 7. **완료:** 이미지 경로를 사용자가 정리한 `public/asset/img/`로 변경. 메뉴·HUD·브라우저 제목을 최종 지정한 영문으로 통일.
+8. **완료:** 첫 방문 BGM 선택과 localStorage 설정 저장·복원. 선택 전에는 무음으로 대기한다.
 
 ## 상태와 자원 수명
+
+첫 방문에는 BGM 사용 여부를 고르는 dialog를 표시한다. 선택 전에는 무음이며 BGM 켜기·무음 모두 `antarctic-adventure:audio-muted:v1`에 저장한다. 유효한 설정이 있으면 이후 방문에서는 묻지 않고 복원한다. ESC/바깥 클릭으로 닫기는 무음 선택으로 처리한다. 메뉴·일시정지에서 바꾼 값도 저장한다. `AudioPreferences`와 `useSyncExternalStore`로 SSR 초기 화면을 일치시키고, 실제 재생 전에 저장값을 적용한다. 저장 불가 시 선택은 메모리에 유지한다.
 
 `GameShell`은 screen/menu modal/mode만 reducer로 관리한다. `gaze` 선택은 개발중 안내만 표시하며 카메라나 Phaser를 실행하지 않는다. 클래식의 시뮬레이션은 기존 Phaser 계층에 남는다.
 
@@ -18,7 +21,7 @@
 
 메뉴 복귀는 `GameCanvas`를 언마운트한다. 기존 cleanup에서 입력·resize·브리지 리스너를 정리하고 Phaser를 destroy한다. 모듈 범위의 제거 완료 Promise로 실제 destroy 이벤트 이후에 다음 인스턴스를 생성한다. 새 게임은 기존 localStorage 최고 기록만 불러온다.
 
-`BackgroundMusic`은 하나의 audio 요소를 사용한다. 메뉴는 `01 - Opening.mp3`, 클래식은 `02 - Main Bgm.mp3`이며 화면 전환은 처음부터 재생한다. 일시정지/재개는 같은 위치를 유지한다. 사용자 클릭·키보드 입력 후 재생을 시도하고 autoplay 거부는 비치명적으로 처리한다. `03 - Stage Clear.mp3`, `04 - Bgm.mp3`는 현재 사용하지 않는다.
+`BackgroundMusic`은 하나의 audio 요소를 사용한다. 메뉴는 `01 - Opening.mp3`, 클래식은 `02 - Main Bgm.mp3`이며 화면 전환은 처음부터 재생한다. 게임오버 후 재도전도 처음부터 재생한다. 버튼·Space·패드의 공통 재시작 처리에서 `GAME_EVENTS.restarted`를 발행해 재생 위치를 초기화한다. 일시정지/재개는 같은 위치를 유지한다. 사용자 클릭·키보드 입력 후 재생을 시도하고 autoplay 거부는 비치명적으로 처리한다. `03 - Stage Clear.mp3`, `04 - Bgm.mp3`는 현재 사용하지 않는다.
 
 ## 변경 파일
 
@@ -28,6 +31,7 @@
 - `src/components/game/menu-state.ts`, `menu-state.test.ts`
 - `src/game/config/audio.ts`
 - `src/game/systems/BackgroundMusic.ts`, `BackgroundMusic.test.ts`
+- `src/game/systems/AudioPreferences.ts`, `AudioPreferences.test.ts`
 - 이 문서
 
 수정:
@@ -44,12 +48,16 @@
 
 ## 검증
 
-- 로직 테스트 74개 통과: 모드 전환, 개발자 링크, BGM 전환/거부, pause edge, 주행/랜드마크 정지·재개 포함.
+- 로직 테스트 75개 통과: 모드 전환, 개발자 링크, BGM 전환/거부/재도전, pause edge, 주행/랜드마크 정지·재개 포함.
+- 첫 방문 음악 선택 추가 후 전체 88개 테스트 통과. 저장값 복원, 미선택 상태, 저장소 접근/쓰기 실패 시 세션 내 설정 유지, 음소거 상태의 메뉴·게임·재도전을 포함한다.
 - ESLint, TypeScript, `pnpm build --webpack` 통과. 기본 Turbopack 빌드는 실행 환경의 PostCSS 내부 프로세스 포트 권한 오류로 webpack을 사용했다.
 - 브라우저에서 클래식 → 가속 1회 → 일시정지 → 메뉴를 3회 반복. 매번 게임 캔버스 1개, 메뉴에서 0개, audio 1개, 가속 14→22m/s 한 번만 적용, 새 거리로 시작함을 확인했다.
 - 정지 중 거리와 BGM 재생 위치가 유지되고 ESC 재개 후 모두 이어짐을 확인했다.
+- 재도전 BGM 수정 후 브라우저에서 게임오버 당시 9.36초였던 재생 위치가 재도전 직후 0.23초로 돌아감을 확인했다. 이어서 계속하기는 0.49초부터 진행되어 정지 위치를 유지했다.
+- Space 재도전도 재생 위치가 13.08초에서 0초로 초기화되는 것을 확인했다.
 - gaze 모달에서 캔버스 0개, 개발자 링크 href/target/rel, 모달 Tab/Shift+Tab 순환과 ESC 닫기를 확인했다. 이메일 발송이나 외부 계정 조작은 하지 않았다.
 - 데스크톱 1280×800, 세로 모바일 390×844, 가로 모바일 844×390, 작은 화면 320×360을 검사했다. 일시정지 창의 clientHeight와 scrollHeight가 일치하고 계속하기·메인 메뉴가 같은 행에 배치된다. 작은 메뉴에서도 제목과 음소거 버튼이 겹치지 않고 세로 스크롤이 없다.
 - 검증 구간의 브라우저 console error 없음.
+- BGM 선택 전 키 입력에도 audio가 muted/paused 상태로 유지되고, 두 선택 버튼이 각각 무음/재생으로 연결됨을 브라우저에서 확인했다. 메뉴에서 음악을 켠 후와 일시정지에서 음소거한 후 새로고침해도 설정이 유지되며 선택 창은 다시 뜨지 않는다. 320×360 화면의 선택 창은 clientHeight와 scrollHeight가 일치한다.
 
 실물 휴대폰·게임패드는 검증하지 못했다. 패드 edge는 모의 입력 테스트, 모바일은 브라우저 뷰포트 검사다. 오디오는 재생 상태·재생 위치·에셋 로드로 검증했다. 시선추적과 후속 이벤트 음악은 예정 기능이다.
