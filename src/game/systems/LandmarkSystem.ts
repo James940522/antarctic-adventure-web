@@ -3,68 +3,71 @@ import { LANDMARKS, type LandmarkDefinition } from "../data/landmarks.ts";
 
 export type LandmarkSnapshot = {
   next: { name: string; distanceRemaining: number } | null;
-  message: Pick<LandmarkDefinition, "id" | "name" | "nameEn" | "distance"> | null;
+  arrival: Pick<LandmarkDefinition, "id" | "name" | "nameEn" | "distance"> | null;
 };
 
 export type LandmarkRenderer = {
-  render: (landmark: LandmarkDefinition, remainingMeters: number) => void;
+  render: (landmark: LandmarkDefinition, remainingMeters: number, alpha?: number) => void;
   clear: () => void;
 };
 
-/** Observes the run's final distance; never owns movement, difficulty or collision. */
+/** Arrival lifecycle; RunSystem owns exact stopping and advances this clock only while active. */
 export class LandmarkSystem {
   private readonly view?: LandmarkRenderer;
-  private readonly onPassed?: (landmark: LandmarkDefinition) => void;
+  private readonly onArrived?: (landmark: LandmarkDefinition) => void;
   private nextIndex = 0;
   private distance = 0;
   private active: LandmarkDefinition | null = null;
-  private message: LandmarkSnapshot["message"] = null;
-  private messageUntil = 0;
+  private celebrationTime: number | null = null;
 
-  constructor(view?: LandmarkRenderer, onPassed?: (landmark: LandmarkDefinition) => void) {
+  constructor(view?: LandmarkRenderer, onArrived?: (landmark: LandmarkDefinition) => void) {
     this.view = view;
-    this.onPassed = onPassed;
+    this.onArrived = onArrived;
   }
 
   get next(): LandmarkDefinition | null { return LANDMARKS[this.nextIndex] ?? null; }
   get activeLandmark(): LandmarkDefinition | null { return this.active; }
+  get celebrationElapsedSeconds(): number | null { return this.celebrationTime; }
+  get isCelebrating(): boolean { return this.celebrationTime !== null; }
   get progress(): number | null {
-    return this.active ? 1 - (this.active.distance - this.distance) / this.active.approachDistance : null;
+    return this.active ? Math.min(1, 1 - (this.active.distance - this.distance) / this.active.approachDistance) : null;
   }
 
-  update(distanceMeters: number, elapsedSeconds: number): void {
-    if (!Number.isFinite(distanceMeters) || !Number.isFinite(elapsedSeconds)) return;
+  update(distanceMeters: number): void {
+    if (!Number.isFinite(distanceMeters) || this.isCelebrating) return;
     this.distance = Math.max(this.distance, distanceMeters);
-    if (elapsedSeconds >= this.messageUntil) this.message = null;
-
-    while (this.next && this.distance >= this.next.distance) {
-      const passed = this.next;
-      this.nextIndex++;
-      if (passed.showPassMessage) {
-        this.message = { id: passed.id, name: passed.name, nameEn: passed.nameEn, distance: passed.distance };
-        this.messageUntil = elapsedSeconds + LANDMARK_CONFIG.sizes[passed.size].messageSeconds;
-      }
-      this.onPassed?.(passed);
+    const next = this.next;
+    if (!next) return;
+    if (this.distance >= next.distance) {
+      this.distance = next.distance;
+      this.active = next;
+      this.celebrationTime = 0;
+      this.onArrived?.(next);
+    } else if (next.distance - this.distance <= next.approachDistance) {
+      this.active = next;
     }
+    this.render();
+  }
 
-    if (this.active && this.distance >= this.active.distance + LANDMARK_CONFIG.exitDistance) {
+  advanceCelebration(seconds: number): boolean {
+    if (this.celebrationTime === null || !Number.isFinite(seconds) || seconds < 0) return false;
+    this.celebrationTime += seconds;
+    if (this.celebrationTime >= LANDMARK_CONFIG.celebrationSeconds - 1e-9) {
       this.view?.clear();
       this.active = null;
+      this.celebrationTime = null;
+      this.nextIndex++;
+      return true;
     }
-    if (!this.active && this.next && this.next.distance - this.distance <= this.next.approachDistance) {
-      this.active = this.next;
-    }
-    if (this.active) this.view?.render(this.active, this.active.distance - this.distance);
+    this.render();
+    return false;
   }
 
   snapshot(): LandmarkSnapshot {
+    const arrived = this.isCelebrating ? this.active : null;
     return {
-      next: this.next ? {
-        name: this.next.name,
-        // Do not show 0 m before the exact crossing, or round current distance upward.
-        distanceRemaining: Math.ceil(this.next.distance - this.distance),
-      } : null,
-      message: this.message,
+      next: this.next ? { name: this.next.name, distanceRemaining: Math.max(0, Math.ceil(this.next.distance - this.distance)) } : null,
+      arrival: arrived ? { id: arrived.id, name: arrived.name, nameEn: arrived.nameEn, distance: arrived.distance } : null,
     };
   }
 
@@ -72,7 +75,14 @@ export class LandmarkSystem {
     this.view?.clear();
     this.nextIndex = 0;
     this.distance = 0;
-    this.active = this.message = null;
-    this.messageUntil = 0;
+    this.active = null;
+    this.celebrationTime = null;
+  }
+
+  private render(): void {
+    if (!this.active) return;
+    const alpha = this.celebrationTime === null ? 1
+      : Math.min(1, (LANDMARK_CONFIG.celebrationSeconds - this.celebrationTime) / LANDMARK_CONFIG.fadeSeconds);
+    this.view?.render(this.active, Math.max(0, this.active.distance - this.distance), alpha);
   }
 }

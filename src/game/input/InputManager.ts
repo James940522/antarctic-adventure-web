@@ -42,7 +42,7 @@ export class InputManager {
     const left = keyboard.left || gamepad.left || touch.left;
     const right = keyboard.right || gamepad.right || touch.right;
     const speedBlocked = this.gamepadSpeedBlocked;
-    if (!gamepad.up && !gamepad.down && Math.abs(gamepad.verticalAxis) < PLAYER_CONFIG.gearAxisThreshold) this.gamepadSpeedBlocked = false;
+    if (!gamepad.up && !gamepad.down && Math.abs(gamepad.verticalAxis) < PLAYER_CONFIG.speedAxisThreshold) this.gamepadSpeedBlocked = false;
     const up = keyboard.up || touch.up || (!speedBlocked && gamepad.up);
     const down = keyboard.down || touch.down || (!speedBlocked && gamepad.down);
     const x = left || right

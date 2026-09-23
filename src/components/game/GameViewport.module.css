@@ -50,8 +50,8 @@
 
 .controls { display: none; }
 .control {
-  height: 56px;
-  min-width: 48px;
+  height: 44px;
+  min-width: 44px;
   border: 1px solid #94a3b84d;
   border-radius: 16px;
   background: rgb(71 85 105 / 28%);
@@ -66,22 +66,26 @@
 .control:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
 .control[data-pressed="true"] { background: rgb(56 189 248 / 40%); color: #e0f2fe; border-color: #bae6fd; }
 .control:disabled { opacity: 0.35; cursor: default; }
-.left, .right { width: clamp(48px, 9vw, 88px); }
-.left { justify-self: start; }
-.right { justify-self: end; }
-.speed { height: 48px; border-radius: 50%; font-size: 18px; }
+.handControls {
+  display: grid;
+  width: clamp(140px, 22vw, 184px);
+  grid-template-columns: repeat(3, minmax(44px, 1fr));
+  gap: 8px 4px;
+}
+.direction { grid-column: 1 / -1; height: 48px; }
+.speed { border-radius: 12px; font-size: 20px; line-height: 1; }
+.speed small { display: block; margin-top: 2px; font-size: 9px; font-weight: 500; }
 .jump { background: rgb(190 242 100 / 22%); color: #d9f99d; font-size: 15px; }
 .jump[data-pressed="true"] { background: rgb(190 242 100 / 40%); color: #ecfccb; }
 
 @media (max-width: 1024px), (pointer: coarse) {
-  .stage { --controls-height: 56px; --controls-gap: 8px; }
+  .stage { --controls-height: 100px; --controls-gap: 8px; }
   .controls {
-    display: grid;
+    display: flex;
     width: 100%;
     height: var(--controls-height);
-    grid-template-columns: 1fr 48px 88px 48px 1fr;
-    align-items: center;
-    gap: clamp(4px, 1vw, 8px);
+    justify-content: space-between;
+    gap: 8px;
   }
   .desktopHint { display: none; }
 }

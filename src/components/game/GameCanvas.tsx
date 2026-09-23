@@ -110,8 +110,9 @@ export function GameCanvas() {
     >
       <p className="sr-only">
         자동으로 전진합니다. 게임 화면을 클릭하거나 Tab으로 선택한 뒤 좌우 방향키 또는 A D로 이동하고,
-        위아래 방향키 또는 W S를 한 번씩 눌러 1~3단 속도를 바꿉니다. Space로 점프합니다.
+        위아래 방향키 또는 W S를 한 번씩 눌러 속도를 초당 8미터씩 조절합니다. 기본 속도는 초당 14미터이며 상한은 없습니다. Space로 점프합니다.
         박스에 닿으면 게임오버이며 이동 거리로 기록을 겨룹니다. 게임패드도 같은 조작을 지원합니다.
+        랜드마크에 도착하면 2.5초 동안 멈춰 기뻐한 뒤 자동으로 다시 출발합니다.
         태블릿 이하에서는 좌우 이동·점프·감속·가속 버튼을 사용할 수 있습니다.
       </p>
       <div className={styles.surface}>
@@ -156,7 +157,7 @@ export function GameCanvas() {
         </p>
       </noscript>
       </div>
-      <TouchControls disabled={status !== "ready" || run?.status === "gameover"} />
+      <TouchControls disabled={status !== "ready" || run?.status !== "running"} />
     </section>
     </div>
   );

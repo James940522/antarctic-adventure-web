@@ -4,7 +4,7 @@ import type { GameInputState } from "../input/input.types.ts";
 export type PlayerState = {
   courseX: number;
   currentSpeed: number;
-  speedLevel: number;
+  selectedSpeed: number;
   distanceTravelled: number;
   jumpPhase: "grounded" | "rising" | "falling";
   jumpHeight: number;
@@ -13,11 +13,11 @@ export type PlayerState = {
 
 // Simulation coordinates never depend on the canvas or CSS size.
 export class Player {
-  private previousGearDirection = 0;
+  private previousSpeedDirection = 0;
   private readonly current: PlayerState = {
     courseX: 0,
-    currentSpeed: PLAYER_CONFIG.speeds[0],
-    speedLevel: 1,
+    currentSpeed: PLAYER_CONFIG.baseSpeed,
+    selectedSpeed: PLAYER_CONFIG.baseSpeed,
     distanceTravelled: 0,
     jumpPhase: "grounded",
     jumpHeight: 0,
@@ -37,13 +37,13 @@ export class Player {
       state.courseX + input.horizontalAxis * PLAYER_CONFIG.lateralSpeed * seconds,
     ));
 
-    const gearDirection = Math.abs(input.verticalAxis) >= PLAYER_CONFIG.gearAxisThreshold
+    const speedDirection = Math.abs(input.verticalAxis) >= PLAYER_CONFIG.speedAxisThreshold
       ? -Math.sign(input.verticalAxis) : 0;
-    if (gearDirection !== 0 && gearDirection !== this.previousGearDirection) {
-      state.speedLevel = Math.max(1, Math.min(PLAYER_CONFIG.speeds.length, state.speedLevel + gearDirection));
+    if (speedDirection !== 0 && speedDirection !== this.previousSpeedDirection) {
+      state.selectedSpeed = Math.max(PLAYER_CONFIG.baseSpeed, state.selectedSpeed + speedDirection * PLAYER_CONFIG.speedStep);
     }
-    this.previousGearDirection = gearDirection;
-    state.currentSpeed = PLAYER_CONFIG.speeds[state.speedLevel - 1];
+    this.previousSpeedDirection = speedDirection;
+    state.currentSpeed = state.selectedSpeed;
     state.distanceTravelled += state.currentSpeed * seconds;
 
     // Only a fresh press on the ground starts a jump. Midair presses are not queued.
@@ -70,5 +70,20 @@ export class Player {
     state.courseX = previous.courseX + (state.courseX - previous.courseX) * fraction;
     state.distanceTravelled = previous.distanceTravelled + (state.distanceTravelled - previous.distanceTravelled) * fraction;
     state.jumpHeight = previous.jumpHeight + (state.jumpHeight - previous.jumpHeight) * fraction;
+  }
+
+  arriveAt(distance: number): void {
+    this.current.distanceTravelled = distance;
+    this.current.currentSpeed = 0;
+    this.current.jumpPhase = "grounded";
+    this.current.jumpHeight = this.current.jumpElapsedSeconds = 0;
+    this.previousSpeedDirection = 0;
+  }
+
+  depart(): void {
+    // The celebration view moves to the center before handing steering back.
+    this.current.courseX = 0;
+    this.current.currentSpeed = this.current.selectedSpeed;
+    this.previousSpeedDirection = 0;
   }
 }

@@ -29,8 +29,8 @@ function close(actual: number, expected: number) {
 test("neutral input advances automatically at the initial speed", () => {
   const player = new Player();
   advance(player, 1);
-  close(player.state.distanceTravelled, PLAYER_CONFIG.speeds[0]);
-  assert.equal(player.state.currentSpeed, PLAYER_CONFIG.speeds[0]);
+  close(player.state.distanceTravelled, PLAYER_CONFIG.baseSpeed);
+  assert.equal(player.state.currentSpeed, PLAYER_CONFIG.baseSpeed);
   assert.equal(player.state.courseX, 0);
 });
 
@@ -48,31 +48,33 @@ test("held directions stop at both course edges and reverse immediately", () => 
   assert.equal(player.state.courseX, -PLAYER_CONFIG.courseLimit);
 });
 
-test("analog strength scales steering while the vertical axis selects a gear", () => {
+test("analog strength scales steering while the vertical axis adjusts speed", () => {
   const full = new Player();
   const half = new Player();
   advance(full, 0.25, { ...neutral, horizontalAxis: 1, verticalAxis: -1 });
   advance(half, 0.25, { ...neutral, horizontalAxis: 0.5, verticalAxis: -0.5 });
   close(half.state.courseX, full.state.courseX / 2);
-  assert.equal(half.state.speedLevel, 2);
-  assert.equal(full.state.speedLevel, 2);
+  assert.equal(half.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
+  assert.equal(full.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
 });
 
-test("speed changes once per press, holds on release, and stays in gears 1 through 3", () => {
+test("speed increases without a gear cap, holds on release, and brakes to the automatic minimum", () => {
   const player = new Player();
   const up = { ...neutral, verticalAxis: -1 };
   const down = { ...neutral, verticalAxis: 1 };
   advance(player, 1, up);
-  assert.equal(player.state.speedLevel, 2);
+  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
   close(player.state.distanceTravelled, 220);
   player.update(neutral, 0);
   player.update(up, 0);
-  assert.equal(player.state.speedLevel, 3);
-  player.update(neutral, 0);
-  advance(player, 1, up);
-  assert.equal(player.state.currentSpeed, 320);
-  for (let i = 0; i < 4; i++) { player.update(neutral, 0); player.update(down, 0); }
-  assert.equal(player.state.speedLevel, 1);
+  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + 2 * PLAYER_CONFIG.speedStep);
+  for (let i = 0; i < 1000; i++) { player.update(neutral, 0); player.update(up, 0); }
+  const selected = PLAYER_CONFIG.baseSpeed + 1002 * PLAYER_CONFIG.speedStep;
+  assert.equal(player.state.currentSpeed, selected);
+  advance(player, 1);
+  assert.equal(player.state.currentSpeed, selected);
+  for (let i = 0; i < 1010; i++) { player.update(neutral, 0); player.update(down, 0); }
+  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed);
   assert.equal(player.state.currentSpeed, 140);
   advance(player, 1);
   assert.equal(player.state.currentSpeed, 140);

@@ -42,12 +42,12 @@ export class GameScene extends Scene {
       this.setupInput();
       this.drawLandscape();
       this.records = new RecordStore();
-      this.run = new RunSystem(this.records.value);
       const projection = new PerspectiveSystem();
       this.landmarks = new LandmarkSystem(new LandmarkView(this, projection), (landmark) => {
-        this.game.events.emit(GAME_EVENTS.landmarkPassed, landmark);
+        this.game.events.emit(GAME_EVENTS.landmarkArrived, landmark);
         this.nextHudRefresh = 0;
       });
+      this.run = new RunSystem(this.records.value, Math.random, this.landmarks);
       this.courseView = new CourseView(this, projection);
       this.playerView = new PlayerView(this, projection);
       this.playerView.render(this.run.player.state);
@@ -68,12 +68,18 @@ export class GameScene extends Scene {
     const inputActive = this.keyboard.isActive || (this.touch?.isActive ?? false);
     const document = this.inputTarget.ownerDocument;
     const active = document.visibilityState !== "hidden" && document.hasFocus();
-    const input = this.controls.update(inputActive);
-    if (active && this.run.status === "running") {
+    const previousStatus = this.run.status;
+    const input = this.controls.update(inputActive && previousStatus !== "celebrating");
+    if (active && previousStatus !== "gameover") {
       const ended = this.run.update(input, this.skipNextDelta ? 0 : delta);
-      // Observe the collision-clamped distance, including a crossing on the final frame.
-      this.landmarks?.update(this.run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, this.run.elapsedSeconds);
       this.skipNextDelta = false;
+      if (previousStatus !== this.run.status) {
+        this.controls.reset();
+        this.nextHudRefresh = 0;
+        this.game.canvas.setAttribute("aria-label", this.run.status === "celebrating"
+          ? "랜드마크 앞에서 뒤돌아 날개를 들고 기뻐하는 펭귄"
+          : "눈 덮인 남극의 지평선을 향해 달리는 펭귄의 뒷모습");
+      }
       if (ended) {
         this.controls.reset();
         this.records?.save(this.run.bestDistance);
@@ -86,7 +92,7 @@ export class GameScene extends Scene {
       this.skipNextDelta = true;
     }
     this.courseView?.render(this.run.player.state.distanceTravelled, this.run.elapsedSeconds, this.run.obstacles.boxes);
-    this.playerView?.render(this.run.player.state);
+    this.playerView?.render(this.run.player.state, this.landmarks?.celebrationElapsedSeconds ?? null);
     this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state, this.landmarks);
     if (time >= this.nextHudRefresh) {
       this.nextHudRefresh = time + RUN_CONFIG.hudRefreshMs;
@@ -112,7 +118,6 @@ export class GameScene extends Scene {
     this.run.restart();
     this.controls?.reset();
     this.courseView?.reset();
-    this.landmarks?.reset();
     this.skipNextDelta = true;
     this.nextHudRefresh = 0;
     this.publishSnapshot();

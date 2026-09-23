@@ -1,4 +1,5 @@
 import { RUN_CONFIG } from "../config/constants.ts";
+import { isLandmarkClearDistance } from "../data/landmarks.ts";
 
 export type BoxObstacle = {
   id: number;
@@ -23,20 +24,21 @@ export class ObstacleSystem {
     this.update(0);
   }
 
-  update(distance: number): void {
+  update(distance: number, travelEnd = distance): void {
     // Reuse the array, and bound live objects by the visible distance.
     for (let i = this.boxes.length - 1; i >= 0; i--) {
       if (this.boxes[i].distance < distance - 160) this.boxes.splice(i, 1);
     }
-    while (this.nextRowDistance <= distance + RUN_CONFIG.viewDistance) {
-      this.spawnRow();
+    while (this.nextRowDistance <= travelEnd + RUN_CONFIG.viewDistance) {
+      // Filter by placement distance, including rows generated before arrival.
+      if (!isLandmarkClearDistance(this.nextRowDistance / RUN_CONFIG.unitsPerMeter)) this.spawnRow();
       this.nextRowDistance += RUN_CONFIG.rowSpacing;
     }
   }
 
   private spawnRow(): void {
-    // The reserved route moves at most one lane per row. At top speed there is
-    // enough time to clear a box, react, and reach the next reserved lane.
+    // The reserved route moves at most one lane per row. Raising the chosen
+    // speed reduces the time to reach that gap; players can brake as needed.
     const nextSafe = [this.safeLane - 1, this.safeLane, this.safeLane + 1]
       .filter((index) => index >= 0 && index < RUN_CONFIG.lanes.length);
     this.safeLane = nextSafe[Math.floor(this.random() * nextSafe.length)];

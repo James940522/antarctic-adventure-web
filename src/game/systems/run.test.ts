@@ -8,6 +8,7 @@ import { boxesPerRow, ObstacleSystem, type BoxObstacle } from "./ObstacleSystem.
 import { PerspectiveSystem } from "./PerspectiveSystem.ts";
 import { RecordStore } from "./RecordStore.ts";
 import { RunSystem } from "./RunSystem.ts";
+import { isLandmarkClearDistance } from "../data/landmarks.ts";
 
 const neutral: GameInputState = {
   left: false, right: false, accelerate: false, brake: false, horizontalAxis: 0, verticalAxis: 0,
@@ -31,12 +32,13 @@ test("projection grows and accelerates toward the player, sharing the player bou
   assert.equal(perspective.project(0, 0).scale, 1);
 });
 
-test("the same obstacle approaches faster in third gear than first", () => {
+test("the same obstacle approaches faster after accelerating beyond the former speed cap", () => {
   const slow = new Player();
   const fast = new Player();
-  fast.update({ ...neutral, verticalAxis: -1 }, 0);
-  fast.update(neutral, 0);
-  fast.update({ ...neutral, verticalAxis: -1 }, 0);
+  for (let i = 0; i < 6; i++) {
+    fast.update(neutral, 0);
+    fast.update({ ...neutral, verticalAxis: -1 }, 0);
+  }
   for (let i = 0; i < 60; i++) { slow.update(neutral, 1000 / 60); fast.update(neutral, 1000 / 60); }
   const projection = new PerspectiveSystem();
   assert.ok(projection.project(0, 900 - fast.state.distanceTravelled).y
@@ -47,9 +49,9 @@ test("difficulty rises from one to six boxes and never fills all seven lanes", (
   assert.deepEqual([0, 1200, 2400, 3600, 4800, 6000, 100000].map(boxesPerRow), [1, 2, 3, 4, 5, 6, 6]);
 });
 
-test("many random courses retain a reachable gap at maximum speed, with bounded live objects", () => {
+test("many random courses retain a reachable gap at 30 m/s, with bounded live objects", () => {
   const halfWidth = RUN_CONFIG.boxHalfWidth + PLAYER_CONFIG.collisionHalfWidth;
-  const availableTime = (RUN_CONFIG.rowSpacing - 2 * RUN_CONFIG.collisionHalfDepth) / PLAYER_CONFIG.speeds[2]
+  const availableTime = (RUN_CONFIG.rowSpacing - 2 * RUN_CONFIG.collisionHalfDepth) / (30 * RUN_CONFIG.unitsPerMeter)
     - RUN_CONFIG.reactionSeconds;
   const reach = availableTime * PLAYER_CONFIG.lateralSpeed;
   const seenFirstX = new Set<number>();
@@ -61,7 +63,7 @@ test("many random courses retain a reachable gap at maximum speed, with bounded 
       const distance = RUN_CONFIG.firstRowDistance + row * RUN_CONFIG.rowSpacing;
       obstacles.update(Math.max(0, distance - RUN_CONFIG.viewDistance));
       const boxes = obstacles.boxes.filter((item) => item.distance === distance);
-      assert.equal(boxes.length, boxesPerRow(distance));
+      assert.equal(boxes.length, isLandmarkClearDistance(distance / RUN_CONFIG.unitsPerMeter) ? 0 : boxesPerRow(distance));
       assert.ok(obstacles.boxes.length <= 36);
       for (const item of boxes) assert.ok(Math.abs(item.courseX) <= PLAYER_CONFIG.courseLimit);
       const safe = RUN_CONFIG.lanes.filter((lane) => boxes.every((item) => Math.abs(item.courseX - lane) > halfWidth));
@@ -107,6 +109,34 @@ test("a timed jump actually clears a box through the shared run simulation", () 
   for (let i = 0; i < 60; i++) run.update(neutral, 1000 / 60);
   assert.equal(run.status, "running");
   assert.equal(run.player.state.jumpPhase, "grounded");
+});
+
+test("uncapped speed cannot tunnel through rows generated beyond the previous view", () => {
+  for (const fps of [30, 60, 144]) {
+    const run = new RunSystem(0, () => 0.5);
+    const expected = new ObstacleSystem(() => 0.5);
+    expected.update(0, 2500);
+    const unseenBox = expected.boxes.find(item => item.distance > RUN_CONFIG.viewDistance)!;
+    assert.ok(unseenBox);
+    Object.assign(run.player.state, {
+      courseX: unseenBox.courseX,
+      selectedSpeed: 2500 * fps,
+    });
+    // Ignore the already visible row, isolating one first generated this frame.
+    run.obstacles.boxes.length = 0;
+    assert.equal(run.update(neutral, 1000 / fps), true);
+    assert.equal(run.status, "gameover");
+    assert.ok(Math.abs(run.player.state.distanceTravelled - (unseenBox.distance - RUN_CONFIG.collisionHalfDepth)) < 1e-8);
+    assert.equal(run.bestDistance, Math.floor(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter));
+  }
+});
+
+test("fast motion retains existing crossed boxes until collision has been resolved", () => {
+  const run = new RunSystem();
+  Object.assign(run.player.state, { selectedSpeed: 50000 });
+  run.obstacles.boxes.splice(0, run.obstacles.boxes.length, box);
+  assert.equal(run.update(neutral, 50), true);
+  assert.equal(run.player.state.distanceTravelled, 80);
 });
 
 test("restart clears distance, speed, jump and old obstacles while retaining the record", () => {

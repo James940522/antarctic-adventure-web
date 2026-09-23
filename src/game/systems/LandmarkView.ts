@@ -7,16 +7,15 @@ import type { LandmarkRenderer } from "./LandmarkSystem.ts";
 
 export function projectLandmark(projection: PerspectiveSystem, landmark: LandmarkDefinition, remainingMeters: number) {
   const point = projection.project(
-    landmark.lateralPosition * LANDMARK_CONFIG.shoulderPosition,
-    remainingMeters / landmark.approachDistance * RUN_CONFIG.viewDistance,
+    0,
+    Math.max(0, remainingMeters) / landmark.approachDistance * RUN_CONFIG.viewDistance,
   );
   const size = LANDMARK_CONFIG.sizes[landmark.size];
   const [, , width, height] = landmark.assetFrame;
   return {
     ...point,
+    y: point.y - LANDMARK_CONFIG.arrivalSetback * point.scale,
     scale: point.scale * Math.min(size.width / width, size.maxHeight / height),
-    alpha: Math.max(0, Math.min(1, 1 + remainingMeters / LANDMARK_CONFIG.exitDistance)),
-    originX: landmark.lateralPosition < 0 ? 1 : 0,
   };
 }
 
@@ -30,12 +29,12 @@ export class LandmarkView implements LandmarkRenderer {
     this.projection = projection;
   }
 
-  render(landmark: LandmarkDefinition, remainingMeters: number): void {
+  render(landmark: LandmarkDefinition, remainingMeters: number, alpha = 1): void {
     if (!this.scene.textures.exists(landmark.assetKey)) return; // Optional art failure cannot end a run.
     const point = projectLandmark(this.projection, landmark, remainingMeters);
     this.sprite ??= this.scene.add.image(0, 0, landmark.assetKey, LANDMARK_CONFIG.frameName);
     this.sprite.setPosition(point.x, point.y)
-      .setOrigin(point.originX, 1).setScale(point.scale).setAlpha(point.alpha)
+      .setOrigin(0.5, 1).setScale(point.scale).setAlpha(alpha)
       .setDepth(point.y);
   }
 

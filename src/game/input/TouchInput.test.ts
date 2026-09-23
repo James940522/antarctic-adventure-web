@@ -1,3 +1,4 @@
+import { PLAYER_CONFIG } from "../config/constants.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { TouchInput } from "./TouchInput.ts";
@@ -65,21 +66,47 @@ test("touch and keyboard merge without duplicate jump or losing digital priority
   assert.equal(manager.update().jump, true);
 });
 
-test("speed taps change one gear, while holding does not auto-repeat", () => {
+test("speed taps change speed once, while holding does not auto-repeat", () => {
   const touch = new TouchInput();
   const manager = new InputManager(idle(), idle(), touch);
   const player = new Player();
   touch.press(1, "up");
   for (let i = 0; i < 30; i++) player.update(manager.update(), 20);
-  assert.equal(player.state.speedLevel, 2);
+  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
   touch.release(1); player.update(manager.update(), 20);
   touch.press(2, "up"); touch.release(2);
   player.update(manager.update(), 20);
-  assert.equal(player.state.speedLevel, 3);
+  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + 2 * PLAYER_CONFIG.speedStep);
   player.update(manager.update(), 20);
   touch.press(3, "down"); touch.release(3);
   player.update(manager.update(), 20);
-  assert.equal(player.state.speedLevel, 2);
+  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
+});
+
+test("either hand can accelerate repeatedly, while simultaneous duplicate buttons count once", () => {
+  const touch = new TouchInput();
+  const manager = new InputManager(idle(), idle(), touch);
+  const player = new Player();
+  touch.press(1, "up"); touch.press(2, "up");
+  player.update(manager.update(), 0);
+  touch.release(1);
+  player.update(manager.update(), 0);
+  assert.equal(player.state.selectedSpeed, 220);
+  touch.release(2);
+  player.update(manager.update(), 0);
+  for (let i = 0; i < 10; i++) {
+    touch.press(i % 2 + 1, "up"); touch.release(i % 2 + 1);
+    player.update(manager.update(), 0);
+    player.update(manager.update(), 0);
+  }
+  assert.equal(player.state.selectedSpeed, 1020);
+  touch.press(3, "up"); touch.press(4, "down");
+  player.update(manager.update(), 0);
+  assert.equal(player.state.selectedSpeed, 1020);
+  manager.reset();
+  player.update(manager.update(), 0);
+  assert.equal(manager.state.verticalAxis, 0);
+  assert.equal(player.state.selectedSpeed, 1020);
 });
 
 function fixture() {
