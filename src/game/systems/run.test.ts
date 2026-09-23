@@ -1,6 +1,7 @@
+import { createObstacle } from "./ObstacleSystem.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GAME_SIZE, PLAYER_VIEW, RUN_CONFIG } from "../config/constants.ts";
+import { GAME_SIZE, PLAYER_CONFIG, PLAYER_VIEW, RUN_CONFIG } from "../config/constants.ts";
 import { getViewportHeight } from "../config/viewport.ts";
 import { Player, type PlayerState } from "../entities/Player.ts";
 import type { GameInputState } from "../input/input.types.ts";
@@ -15,7 +16,14 @@ const neutral: GameInputState = {
   jump: false, jumpPressed: false, jumpReleased: false,
 };
 const state = (values: Partial<PlayerState> = {}): PlayerState => ({ ...new Player().state, ...values });
-const box: Obstacle = { id: 0, type: "supply-crate", startLane: 3, courseX: 0, distance: 100 };
+const box: Obstacle = createObstacle(0, "supply-crate", 3, 100);
+function close(actual: number, expected: number, tolerance = 1e-8) {
+  assert.ok(Math.abs(actual - expected) < tolerance, `${actual} != ${expected}`);
+}
+function averageAfterDistance(initialSpeed: number, distance: number) {
+  return (initialSpeed + Math.sqrt(initialSpeed ** 2 + 2 * PLAYER_CONFIG.baseAcceleration * distance))
+    / 2 / RUN_CONFIG.unitsPerMeter;
+}
 function seeded(seed: number) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
 }
@@ -89,7 +97,8 @@ test("collision freezes the exact contact distance and records it only once at d
     assert.equal(run.status, "gameover");
     assert.ok(Math.abs(run.player.state.distanceTravelled - 84) < 1e-8);
     assert.equal(run.bestRecord.distance, 8);
-    assert.ok(Math.abs(run.averageSpeed - 14) < 1e-8);
+    close(run.averageSpeed, averageAfterDistance(140, 84), 1e-6);
+    close(run.player.state.baseSpeed, 140 + PLAYER_CONFIG.baseAcceleration * run.elapsedSeconds);
     assert.equal(run.bestRecord.averageSpeed, run.averageSpeed);
     assert.equal(run.newRecord, true);
     const frozen = { ...run.player.state };
@@ -106,16 +115,16 @@ test("average speed uses unrounded distance and time weighting, independent of F
     assert.equal(run.averageSpeed, 0);
     run.update(neutral, 1);
     assert.equal(run.snapshot(false, true).distance, 0);
-    assert.ok(Math.abs(run.averageSpeed - 14) < 1e-8);
+    close(run.averageSpeed, 14.000005);
     run.restart();
     for (let i = 0; i < fps; i++) run.update(neutral, 1000 / fps);
     run.update({ ...neutral, verticalAxis: -1 }, 0);
     for (let i = 0; i < fps * 3; i++) run.update(neutral, 1000 / fps);
-    // 1s at 14m/s + 3s at 22m/s = 80m / 4s = 20m/s.
-    assert.ok(Math.abs(run.averageSpeed - 20) < 1e-8);
+    // Manual steps contribute 80m; gradual acceleration adds 0.08m over 4s.
+    close(run.averageSpeed, 20.02);
     const average = run.averageSpeed;
     run.update({ ...neutral, verticalAxis: -1 }, 0);
-    assert.equal(run.snapshot(false, true).speed, 30);
+    close(run.snapshot(false, true).speed, 30.04);
     assert.equal(run.averageSpeed, average);
     assert.equal(run.snapshot(true, false).averageSpeed, average);
     assert.equal(run.snapshot(false, true).bestAverageSpeed, average);
@@ -149,10 +158,12 @@ test("manual pause freezes player, distance, obstacles, elapsed time and average
   run.setPaused(false);
   run.update(neutral, 50);
   assert.ok(run.player.state.distanceTravelled > player.distanceTravelled);
+  close(run.player.state.baseSpeed, player.baseSpeed + PLAYER_CONFIG.baseAcceleration * 0.05);
   run.setPaused(true);
   run.restart();
   assert.equal(run.isPaused, false);
   assert.equal(run.elapsedSeconds, 0);
+  assert.equal(run.player.state.baseSpeed, PLAYER_CONFIG.baseSpeed);
 });
 
 test("pausing clears a landing-buffered jump without interrupting the current arc", () => {
@@ -181,13 +192,19 @@ test("uncapped speed cannot tunnel through rows generated beyond the previous vi
       courseX: unseenBox.courseX,
       selectedSpeed: 2500 * fps,
     });
+    // Pin the original distance schedule to isolate swept collision from the
+    // new speed-aware lookahead/recovery rules (which prevent this late spawn).
+    const spawn = run.obstacles.update.bind(run.obstacles);
+    run.obstacles.update = (from, to) => spawn(from, to);
     // Ignore the already visible row, isolating one first generated this frame.
     run.obstacles.items.length = 0;
     assert.equal(run.update(neutral, 1000 / fps), true);
     assert.equal(run.status, "gameover");
     assert.ok(Math.abs(run.player.state.distanceTravelled - (unseenBox.distance - RUN_CONFIG.collisionHalfDepth)) < 1e-8);
     assert.equal(run.bestRecord.distance, Math.floor(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter));
-    assert.ok(Math.abs(run.averageSpeed - 2500 * fps / RUN_CONFIG.unitsPerMeter) < 1e-8);
+    // Continuous collision sweeps use the mean speed of this frame.
+    close(run.averageSpeed, (2500 * fps + PLAYER_CONFIG.baseAcceleration / fps / 2) / RUN_CONFIG.unitsPerMeter);
+    close(run.player.state.baseSpeed, 140 + PLAYER_CONFIG.baseAcceleration * run.elapsedSeconds);
   }
 });
 
@@ -196,7 +213,7 @@ test("fast motion retains existing crossed boxes until collision has been resolv
   Object.assign(run.player.state, { selectedSpeed: 50000 });
   run.obstacles.items.splice(0, run.obstacles.items.length, box);
   assert.equal(run.update(neutral, 50), true);
-  assert.equal(run.player.state.distanceTravelled, 84);
+  close(run.player.state.distanceTravelled, 84);
 });
 
 test("restart clears distance, speed, jump and old obstacles while retaining the record", () => {
@@ -206,7 +223,7 @@ test("restart clears distance, speed, jump and old obstacles while retaining the
   assert.equal(run.status, "gameover");
   assert.equal(run.bestRecord.distance, 50);
   assert.equal(run.bestRecord.averageSpeed, 27.4);
-  assert.ok(Math.abs(run.snapshot(false, true).averageSpeed - 22) < 1e-8);
+  close(run.snapshot(false, true).averageSpeed, averageAfterDistance(220, 84), 1e-6);
   assert.equal(run.snapshot(false, true).bestAverageSpeed, 27.4);
   const oldBoxes = run.obstacles;
   run.restart();

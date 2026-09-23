@@ -10,7 +10,7 @@ export class CourseView {
   private readonly projection: PerspectiveSystem;
   private readonly marks: GameObjects.Graphics;
   private readonly ground: GameObjects.Graphics;
-  private readonly views = new Map<number, { body: GameObjects.Image; lastSeen: number }>();
+  private readonly views = new Map<number, { body: GameObjects.Image; label?: GameObjects.Text; lastSeen: number }>();
   private readonly hitboxes?: GameObjects.Graphics;
   private renderTick = 0;
 
@@ -28,8 +28,8 @@ export class CourseView {
   resize(): void {
     const { ground, projection } = this;
     ground.clear();
-    const farLeft = projection.project(-1.1, RUN_CONFIG.viewDistance);
-    const farRight = projection.project(1.1, RUN_CONFIG.viewDistance);
+    const farLeft = projection.project(-1.1, this.projection.viewDistance);
+    const farRight = projection.project(1.1, this.projection.viewDistance);
     const bottomLeft = projection.project(-1.1, -160);
     const bottomRight = projection.project(1.1, -160);
     ground.fillStyle(0xe6f4fa);
@@ -42,8 +42,8 @@ export class CourseView {
 
   render(distance: number, obstacles: readonly Obstacle[]): void {
     this.marks.clear();
-    const spacing = 120;
-    for (let world = Math.floor(distance / spacing) * spacing; world <= distance + RUN_CONFIG.viewDistance; world += spacing) {
+    const spacing = Math.max(120, this.projection.viewDistance / 64);
+    for (let world = Math.floor(distance / spacing) * spacing; world <= distance + this.projection.viewDistance; world += spacing) {
       const relative = world - distance;
       for (let x = -1.08; x <= 1.08; x += 2.16) {
         const point = this.projection.project(x, relative);
@@ -58,30 +58,53 @@ export class CourseView {
     this.renderTick++;
     this.hitboxes?.clear();
     for (const obstacle of obstacles) {
+      if (obstacle.distance - distance > this.projection.viewDistance) continue;
       const definition = OBSTACLE_DEFINITIONS[obstacle.type];
       let view = this.views.get(obstacle.id);
       if (!view) {
         const body = this.scene.add.image(0, 0, definition.assetKey, OBSTACLE_CONFIG.frameName).setOrigin(0.5, 1);
-        view = { body, lastSeen: this.renderTick };
+        const label = this.hitboxes ? this.scene.add.text(0, 0,
+          `${obstacle.type} · span ${definition.laneSpan} · lanes [${obstacle.occupiedLanes.join(",")}]`,
+          { fontSize: "11px", color: "#ffffff", backgroundColor: "#173b51", padding: { x: 3, y: 2 } })
+          .setOrigin(0.5, 1).setDepth(1000) : undefined;
+        view = { body, label, lastSeen: this.renderTick };
         this.views.set(obstacle.id, view);
       }
       view.lastSeen = this.renderTick;
       const point = this.projection.project(obstacle.courseX, obstacle.distance - distance);
       view.body.setPosition(point.x, point.y)
-        .setScale(point.scale * definition.visualWidth / definition.assetFrame[2]).setDepth(point.y);
+        .setScale(point.scale * obstacle.visualWidth / definition.assetFrame[2]).setDepth(point.y);
+      view.label?.setPosition(point.x, point.y - point.scale * obstacle.visualHeight - 4);
       if (this.hitboxes) this.drawHitbox(obstacle, distance);
     }
     for (const [id, view] of this.views) {
-      if (view.lastSeen !== this.renderTick) { view.body.destroy(); this.views.delete(id); }
+      if (view.lastSeen !== this.renderTick) { view.body.destroy(); view.label?.destroy(); this.views.delete(id); }
     }
   }
 
   private drawHitbox(obstacle: Obstacle, distance: number): void {
     const graphics = this.hitboxes!;
     const definition = OBSTACLE_DEFINITIONS[obstacle.type];
-    const left = obstacle.courseX - definition.collisionHalfWidth;
-    const right = obstacle.courseX + definition.collisionHalfWidth;
+    const left = obstacle.courseX - obstacle.collisionHalfWidth;
+    const right = obstacle.courseX + obstacle.collisionHalfWidth;
     const relative = obstacle.distance - distance;
+    const point = this.projection.project(obstacle.courseX, relative);
+    graphics.lineStyle(1, 0x28c6ef, 0.9);
+    graphics.strokeRect(point.x - obstacle.visualWidth * point.scale / 2, point.y - obstacle.visualHeight * point.scale,
+      obstacle.visualWidth * point.scale, obstacle.visualHeight * point.scale);
+    const laneWidth = obstacle.occupiedWidth / obstacle.occupiedLanes.length;
+    graphics.lineStyle(1, 0xa9d948, 0.9);
+    for (let index = 0; index <= obstacle.occupiedLanes.length; index++) {
+      const x = obstacle.courseX - obstacle.occupiedWidth / 2 + index * laneWidth;
+      const far = this.projection.project(x, relative + RUN_CONFIG.collisionHalfDepth);
+      const near = this.projection.project(x, relative - RUN_CONFIG.collisionHalfDepth);
+      graphics.lineBetween(far.x, far.y, near.x, near.y);
+      if (index < obstacle.occupiedLanes.length) {
+        const next = this.projection.project(x + laneWidth, relative);
+        const start = this.projection.project(x, relative);
+        graphics.lineBetween(start.x, start.y, next.x, next.y);
+      }
+    }
     const farLeft = this.projection.project(left, relative + RUN_CONFIG.collisionHalfDepth);
     const farRight = this.projection.project(right, relative + RUN_CONFIG.collisionHalfDepth);
     const nearLeft = this.projection.project(left, relative - RUN_CONFIG.collisionHalfDepth);
@@ -94,12 +117,12 @@ export class CourseView {
     graphics.lineTo(nearLeft.x, nearLeft.y);
     graphics.closePath();
     graphics.strokePath();
-    const height = definition.collisionHeight * nearLeft.scale;
+    const height = obstacle.collisionHeight * nearLeft.scale;
     if (height > 0) graphics.strokeRect(nearLeft.x, nearLeft.y - height, nearRight.x - nearLeft.x, height);
   }
 
   reset(): void {
-    for (const view of this.views.values()) view.body.destroy();
+    for (const view of this.views.values()) { view.body.destroy(); view.label?.destroy(); }
     this.views.clear();
     this.hitboxes?.clear();
   }

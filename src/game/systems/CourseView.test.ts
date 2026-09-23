@@ -1,3 +1,4 @@
+import { createObstacle } from "./ObstacleSystem.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Scene } from "phaser";
@@ -6,7 +7,7 @@ import { CourseView } from "./CourseView.ts";
 import type { Obstacle } from "./ObstacleSystem.ts";
 import { PerspectiveSystem } from "./PerspectiveSystem.ts";
 
-test("each type renders one preloaded image, keeps its aspect ratio, and reuses then releases its view", () => {
+test("every legal 3/5/7-lane placement renders one centered image, preserves aspect ratio, and reuses then releases its view", () => {
   const images: Array<{ key: string; frame: string; x: number; y: number; scale: number; originX: number; originY: number; destroyed: boolean }> = [];
   const graphics = {
     clear() { return this; }, setDepth() { return this; }, fillStyle() { return this; },
@@ -28,7 +29,18 @@ test("each type renders one preloaded image, keeps its aspect ratio, and reuses 
   } } as unknown as Scene;
   const projection = new PerspectiveSystem();
   const view = new CourseView(scene, projection);
-  const obstacles: Obstacle[] = OBSTACLE_IDS.map((type, id) => ({ id, type, startLane: 3, courseX: 0, distance: 1000 + id * 500 }));
+  const obstacles: Obstacle[] = [];
+  for (const count of [3, 5, 7]) {
+    const lanes = Array.from({ length: count }, (_, i) => -1.05 + (i + 0.5) * 2.1 / count);
+    for (const type of OBSTACLE_IDS) {
+      const span = OBSTACLE_DEFINITIONS[type].laneSpan;
+      const width = span === "full" ? count : span;
+      for (let start = 0; start <= count - width; start++) {
+        const id = obstacles.length;
+        obstacles.push(createObstacle(id, type, start, 1000 + id * 500, lanes));
+      }
+    }
+  }
   for (let index = 0; index < obstacles.length; index++) {
     const obstacle = obstacles[index];
     const definition = OBSTACLE_DEFINITIONS[obstacle.type];
@@ -36,20 +48,22 @@ test("each type renders one preloaded image, keeps its aspect ratio, and reuses 
     assert.equal(images.length, index + 1, "wide types still use exactly one image");
     const image = images[index];
     const farScale = image.scale;
+    assert.equal(image.x, projection.project(obstacle.courseX, 600).x);
     view.render(obstacle.distance, [obstacle]);
     view.render(obstacle.distance, [obstacle]);
     assert.equal(images.length, index + 1, "unchanged frames reuse the image");
     assert.equal(image.key, definition.assetKey);
     assert.equal(image.frame, OBSTACLE_CONFIG.frameName);
     assert.deepEqual([image.originX, image.originY], [0.5, 1]);
+    assert.equal(image.x, projection.project(obstacle.courseX, 0).x);
     assert.equal(image.y, projection.contactY);
     assert.ok(image.scale > farScale);
-    assert.ok(Math.abs(image.scale * definition.assetFrame[2] - definition.visualWidth) < 1e-9);
-    assert.ok(Math.abs(image.scale * definition.assetFrame[3] - definition.visualHeight) < 1e-9);
+    assert.ok(Math.abs(image.scale * definition.assetFrame[2] - obstacle.visualWidth) < 1e-9);
+    assert.ok(Math.abs(image.scale * definition.assetFrame[3] - obstacle.visualHeight) < 1e-9);
     if (index > 0) assert.equal(images[index - 1].destroyed, true);
   }
   view.reset();
   assert.ok(images.every(image => image.destroyed));
   view.render(0, []);
-  assert.equal(images.length, 6);
+  assert.equal(images.length, obstacles.length);
 });

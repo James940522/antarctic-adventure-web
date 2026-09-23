@@ -4,6 +4,7 @@ import { getFrameJumpProgress, getJumpHeight, type JumpMotion } from "./jump.ts"
 
 export type PlayerState = {
   courseX: number;
+  baseSpeed: number;
   currentSpeed: number;
   selectedSpeed: number;
   distanceTravelled: number;
@@ -20,6 +21,7 @@ export class Player {
   private frameJump: JumpMotion | null = null;
   private readonly current: PlayerState = {
     courseX: 0,
+    baseSpeed: PLAYER_CONFIG.baseSpeed,
     currentSpeed: PLAYER_CONFIG.baseSpeed,
     selectedSpeed: PLAYER_CONFIG.baseSpeed,
     distanceTravelled: 0,
@@ -47,11 +49,15 @@ export class Player {
     const speedDirection = Math.abs(input.verticalAxis) >= PLAYER_CONFIG.speedAxisThreshold
       ? -Math.sign(input.verticalAxis) : 0;
     if (speedDirection !== 0 && speedDirection !== this.previousSpeedDirection) {
-      state.selectedSpeed = Math.max(PLAYER_CONFIG.baseSpeed, state.selectedSpeed + speedDirection * PLAYER_CONFIG.speedStep);
+      state.selectedSpeed = Math.max(state.baseSpeed, state.selectedSpeed + speedDirection * PLAYER_CONFIG.speedStep);
     }
     this.previousSpeedDirection = speedDirection;
+    const speedIncrease = PLAYER_CONFIG.baseAcceleration * seconds;
+    // Integrate the gradual increase with the frame's mean speed, independent of FPS.
+    state.distanceTravelled += (state.selectedSpeed + speedIncrease / 2) * seconds;
+    state.baseSpeed += speedIncrease;
+    state.selectedSpeed += speedIncrease;
     state.currentSpeed = state.selectedSpeed;
-    state.distanceTravelled += state.currentSpeed * seconds;
 
     // Buffer only a fresh press near landing, never a held button or an early tap.
     if (input.jumpPressed) {
@@ -92,6 +98,11 @@ export class Player {
 
   stopAt(previous: Readonly<PlayerState>, fraction: number): void {
     const state = this.current;
+    // Contact/arrival only consumes part of this frame. Keep manual speed taps intact.
+    const unusedIncrease = (state.baseSpeed - previous.baseSpeed) * (1 - fraction);
+    state.baseSpeed -= unusedIncrease;
+    state.selectedSpeed -= unusedIncrease;
+    state.currentSpeed = state.selectedSpeed;
     state.courseX = previous.courseX + (state.courseX - previous.courseX) * fraction;
     state.distanceTravelled = previous.distanceTravelled + (state.distanceTravelled - previous.distanceTravelled) * fraction;
     if (this.frameJump) {

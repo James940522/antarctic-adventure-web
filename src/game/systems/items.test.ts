@@ -1,9 +1,10 @@
+import { createObstacle } from "./ObstacleSystem.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { RUN_CONFIG } from "../config/constants.ts";
 import { GHOST_CONFIG, ITEM_CONFIG, ITEM_DEFINITIONS, type GameItem, type ItemDefinition, type ItemType, type ItemEffectType } from "../data/items.ts";
 import { isLandmarkClearDistance } from "../data/landmarks.ts";
-import { OBSTACLE_DEFINITIONS, OBSTACLE_IDS } from "../data/obstacles.ts";
+import { OBSTACLE_IDS } from "../data/obstacles.ts";
 import { Player, type PlayerState } from "../entities/Player.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import { ghostCountdown, ghostOpacity, ItemEffectSystem } from "./ItemEffectSystem.ts";
@@ -18,7 +19,7 @@ const neutral: GameInputState = {
 };
 const state = (values: Partial<PlayerState> = {}): PlayerState => ({ ...new Player().state, ...values });
 const item = (values: Partial<GameItem> = {}): GameItem => ({ id: 0, type: "ghost-penguin", courseX: 0, distance: 0, ...values });
-const box = (values: Partial<Obstacle> = {}): Obstacle => ({ id: 0, type: "supply-crate", startLane: 3, courseX: 0, distance: 0, ...values });
+const box = (values: Partial<Obstacle> = {}): Obstacle => ({ ...createObstacle(0, values.type ?? "supply-crate", values.startLane ?? (values.type === "barricade" ? 0 : 3), values.distance ?? 0), ...values });
 function seeded(seed: number) {
   return () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
 }
@@ -61,7 +62,7 @@ test("rare items preserve safe lanes, landmark corridors and bounded live items 
       assert.ok(RUN_CONFIG.lanes.some(lane => lane === entry.courseX));
       assert.ok(!obstacles.items.some(obstacle =>
         Math.abs(obstacle.distance - entry.distance) <= clearance
-        && Math.abs(obstacle.courseX - entry.courseX) <= OBSTACLE_DEFINITIONS[obstacle.type].collisionHalfWidth
+        && Math.abs(obstacle.courseX - entry.courseX) <= obstacle.collisionHalfWidth
           + ITEM_DEFINITIONS[entry.type].pickupHalfWidth,
       ));
       seen.set(entry.id, entry);
@@ -192,7 +193,7 @@ test("10-second effect, last-five countdown, accelerating blink and refresh shar
   assert.equal(ghostOpacity(1, true), GHOST_CONFIG.opacity);
 });
 
-test("all six hazards are bypassed while ghost is active, with no speed or score change", () => {
+test("all thirteen hazards are bypassed while ghost is active, with no speed or score change", () => {
   for (const type of OBSTACLE_IDS) {
     const run = runWithoutRandomItems();
     run.items.items.push(item());
@@ -202,9 +203,9 @@ test("all six hazards are bypassed while ghost is active, with no speed or score
     for (let i = 0; i < 20; i++) run.update(neutral, 50);
     assert.equal(run.status, "running");
     assert.ok(Math.abs(run.effects.ghostSeconds - 9) < 1e-8);
-    assert.equal(run.snapshot(false, true).speed, 14);
+    assert.ok(Math.abs(run.snapshot(false, true).speed - 14.01) < 1e-8);
     assert.equal(run.snapshot(false, true).score, 14);
-    assert.ok(Math.abs(run.averageSpeed - 14) < 1e-8);
+    assert.ok(Math.abs(run.averageSpeed - 14.005) < 1e-8);
   }
 });
 

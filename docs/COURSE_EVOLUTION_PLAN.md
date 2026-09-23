@@ -1,6 +1,6 @@
 # 랜드마크 이후 코스 확장 계획
 
-> 최신 장애물 구현은 [OBSTACLE_ASSETS_PLAN.md](./OBSTACLE_ASSETS_PLAN.md)를 따른다. 실제 PNG 6종·한 행 하나·35~55m(2칸 뒤 +10m)로 교체되었으며, 아래 다중 박스·거리별 밀도 증가는 이전 계획이다. CourseSegmentSystem은 아직 구현하지 않았다.
+> 최신 장애물 구현은 [OBSTACLE_ASSETS_PLAN.md](./OBSTACLE_ASSETS_PLAN.md)를 따른다. 실제 PNG 6종을 거리별 2~4개씩 엇갈려 배치하고, 묶음 사이 35~55m(2칸 포함 뒤 +10m)와 회피 경로를 확보한다. 아래 다중 네온 박스·120m별 밀도 증가는 이전 계획이다. CourseSegmentSystem은 아직 구현하지 않았다.
 
 상태: 작업 계획. 아래 구간·장애물 확장은 아직 구현하지 않았다.
 

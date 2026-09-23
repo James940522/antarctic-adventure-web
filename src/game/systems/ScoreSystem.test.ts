@@ -1,3 +1,4 @@
+import { createObstacle } from "./ObstacleSystem.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { GameInputState } from "../input/input.types.ts";
@@ -29,8 +30,8 @@ test("time-weighted speed, not the last selected speed, determines score; pause 
   run.update({ ...neutral, verticalAxis: -1 }, 0);
   for (let i = 0; i < 60; i++) run.update(neutral, 50);
   const before = run.snapshot(false, true);
-  assert.ok(Math.abs(before.averageSpeed - 20) < 1e-8);
-  assert.equal(before.score, Math.round(before.distance * 20 / 14));
+  assert.ok(Math.abs(before.averageSpeed - 20.02) < 1e-8);
+  assert.equal(before.score, Math.round(before.distance * 20.02 / 14));
   // Raising the selected speed with no elapsed movement cannot inflate a record.
   run.update({ ...neutral, verticalAxis: -1 }, 0);
   assert.equal(run.snapshot(false, true).score, before.score);
@@ -46,7 +47,7 @@ test("collision finalizes one score at every frame rate and the payload uses tha
       run.update(neutral, 0);
       run.update({ ...neutral, verticalAxis: -1 }, 0);
     }
-    run.obstacles.items.splice(0, run.obstacles.items.length, { id: 1, type: "supply-crate", startLane: 3, courseX: 0, distance: 1000 });
+    run.obstacles.items.splice(0, run.obstacles.items.length, createObstacle(1, "supply-crate", 3, 1000));
     for (let i = 0; i < fps * 4; i++) run.update(neutral, 1000 / fps);
     const result = run.snapshot(false, true);
     assert.equal(result.status, "gameover");

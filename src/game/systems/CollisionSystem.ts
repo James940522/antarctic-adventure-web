@@ -1,7 +1,6 @@
 import { PLAYER_CONFIG, RUN_CONFIG } from "../config/constants.ts";
 import type { PlayerState } from "../entities/Player.ts";
 import { getFrameJumpProgress, getJumpHeight, type JumpMotion } from "../entities/jump.ts";
-import { OBSTACLE_DEFINITIONS } from "../data/obstacles.ts";
 import type { Obstacle } from "./ObstacleSystem.ts";
 
 export type ContactVolume = {
@@ -50,10 +49,9 @@ export function contactFraction(from: Readonly<PlayerState>, to: Readonly<Player
 
 export function collisionFraction(from: Readonly<PlayerState>, to: Readonly<PlayerState>, obstacle: Obstacle,
   jump?: Readonly<JumpMotion> | null, range?: ContactRange): number | null {
-  const definition = OBSTACLE_DEFINITIONS[obstacle.type];
   return contactFraction(from, to, {
     courseX: obstacle.courseX, distance: obstacle.distance,
-    halfWidth: definition.collisionHalfWidth, halfDepth: RUN_CONFIG.collisionHalfDepth, height: definition.collisionHeight,
+    halfWidth: obstacle.collisionHalfWidth, halfDepth: RUN_CONFIG.collisionHalfDepth, height: obstacle.collisionHeight,
   }, jump, range);
 }
 

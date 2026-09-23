@@ -9,6 +9,7 @@ export function GameHud({ run, onRestart, onPause, onMenu, onRanking, player }: 
   // Fast Refresh can briefly retain a snapshot from before average tracking.
   const averageSpeed = run.averageSpeed?.toFixed(1) ?? "—";
   const bestAverageSpeed = run.bestAverageSpeed?.toFixed(1);
+  const speed = run.speed.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const { next, arrival } = run.landmarks;
   return <div className={`${styles.hud} pointer-events-none absolute inset-0 text-slate-950`}>
     <div className={`${styles.hudTop} absolute inset-x-0 top-0 grid grid-cols-[1fr_1fr_1fr] items-start gap-[1%] bg-gradient-to-b from-slate-950/85 to-slate-950/0 px-[3%] pb-[5%] pt-[2%] text-white`}>
@@ -28,8 +29,8 @@ export function GameHud({ run, onRestart, onPause, onMenu, onRanking, player }: 
       <div className="text-right text-[clamp(9px,1.5cqw,14px)]">
         <p className="tabular-nums">최장 거리 <strong>{formatDistance(run.bestDistance)}</strong></p>
         {bestAverageSpeed !== undefined && <p className="text-[clamp(8px,1.2cqw,12px)] tabular-nums text-slate-300">당시 평균 {bestAverageSpeed} m/s</p>}
-        <p className="mt-1 font-bold tabular-nums text-lime-300" aria-label={`속도 ${run.speed}미터 매초`}>
-          속도 {run.speed.toLocaleString()} <span className="font-normal">m/s</span>
+        <p className="mt-1 font-bold tabular-nums text-lime-300" aria-label={`속도 ${speed}미터 매초`}>
+          속도 {speed} <span className="font-normal">m/s</span>
         </p>
         <p className="mt-1 text-cyan-100">장애물은 점프로 회피</p>
         {!gameover && !run.pauseMenuOpen && <button type="button" onClick={onPause} aria-label="게임 일시정지" className="pointer-events-auto mt-1 min-h-11 rounded border border-white/30 bg-slate-950/40 px-3 text-xs text-white">Ⅱ 일시정지</button>}

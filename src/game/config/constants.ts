@@ -26,7 +26,8 @@ export const INPUT_CONFIG = {
 export const PLAYER_CONFIG = {
   courseLimit: 1,
   lateralSpeed: 1.4, // Normalized course units / second.
-  baseSpeed: 140, // World units / second; 14 m/s keeps automatic forward motion.
+  baseSpeed: 140, // Initial world units / second (14 m/s).
+  baseAcceleration: 0.1, // World units / second²: +0.6 m/s per minute of active driving.
   speedStep: 80, // Each fresh up/down press changes speed by 8 m/s, without a ceiling.
   speedAxisThreshold: 0.5,
   collisionHalfWidth: 0.06,

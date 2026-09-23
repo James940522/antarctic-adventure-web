@@ -72,15 +72,15 @@ test("speed taps change speed once, while holding does not auto-repeat", () => {
   const player = new Player();
   touch.press(1, "up");
   for (let i = 0; i < 30; i++) player.update(manager.update(), 20);
-  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
+  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - PLAYER_CONFIG.speedStep) < 1e-8);
   touch.release(1); player.update(manager.update(), 20);
   touch.press(2, "up"); touch.release(2);
   player.update(manager.update(), 20);
-  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + 2 * PLAYER_CONFIG.speedStep);
+  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - 2 * PLAYER_CONFIG.speedStep) < 1e-8);
   player.update(manager.update(), 20);
   touch.press(3, "down"); touch.release(3);
   player.update(manager.update(), 20);
-  assert.equal(player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.speedStep);
+  assert.ok(Math.abs(player.state.selectedSpeed - player.state.baseSpeed - PLAYER_CONFIG.speedStep) < 1e-8);
 });
 
 test("either hand can accelerate repeatedly, while simultaneous duplicate buttons count once", () => {

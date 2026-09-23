@@ -1,7 +1,6 @@
 import { RUN_CONFIG } from "../config/constants.ts";
 import { isLandmarkClearDistance } from "../data/landmarks.ts";
 import { ITEM_CONFIG, ITEM_DEFINITIONS, ITEM_TYPES, type GameItem, type ItemType } from "../data/items.ts";
-import { OBSTACLE_DEFINITIONS } from "../data/obstacles.ts";
 import type { PlayerState } from "../entities/Player.ts";
 import type { JumpMotion } from "../entities/jump.ts";
 import { contactFraction, type ContactRange } from "./CollisionSystem.ts";
@@ -19,12 +18,12 @@ export class ItemSystem {
     this.nextDistance = this.nextGap();
   }
 
-  update(distance: number, travelEnd: number, obstacles: readonly Obstacle[]): void {
+  update(distance: number, travelEnd: number, obstacles: readonly Obstacle[], viewDistance: number = RUN_CONFIG.viewDistance): void {
     this.prune(distance);
     const clearance = ITEM_CONFIG.obstacleClearanceMeters * RUN_CONFIG.unitsPerMeter;
     // Obstacles are generated first. This small lookahead margin lets us inspect
     // both sides of a candidate, including hazards just beyond its distance.
-    while (this.nextDistance <= travelEnd + RUN_CONFIG.viewDistance - clearance) {
+    while (this.nextDistance <= travelEnd + viewDistance - clearance) {
       const candidate = this.nextDistance;
       // An unsafe candidate is postponed by distance, never rerolled per frame
       // or charged another full 3–4km interval.
@@ -34,7 +33,7 @@ export class ItemSystem {
       const definition = ITEM_DEFINITIONS[type];
       const lanes = RUN_CONFIG.lanes.filter(courseX => !obstacles.some(obstacle =>
         Math.abs(obstacle.distance - candidate) <= clearance
-        && Math.abs(obstacle.courseX - courseX) <= OBSTACLE_DEFINITIONS[obstacle.type].collisionHalfWidth + definition.pickupHalfWidth,
+        && Math.abs(obstacle.courseX - courseX) <= obstacle.collisionHalfWidth + definition.pickupHalfWidth,
       ));
       if (lanes.length === 0) continue;
       this.items.push({ id: this.nextId++, type, courseX: lanes[Math.floor(this.random() * lanes.length)], distance: candidate });

@@ -1,3 +1,4 @@
+import { createObstacle } from "./ObstacleSystem.ts";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -166,13 +167,17 @@ test("30/60/144 FPS stop at exact meters, suppress gameplay for 2.5s, and resume
     assert.equal(run.player.state.distanceTravelled, firstDestinationWorld);
     assert.equal(run.player.state.currentSpeed, 0);
     assert.equal(run.player.state.jumpPhase, "grounded");
-    assert.equal(run.player.state.selectedSpeed, selectedSpeed);
+    const arrivalSpeed = run.player.state.selectedSpeed;
+    assert.ok(Math.abs(arrivalSpeed - (selectedSpeed + PLAYER_CONFIG.baseAcceleration * run.elapsedSeconds)) < 1e-8);
+    assert.ok(Math.abs(run.player.state.baseSpeed - (PLAYER_CONFIG.baseSpeed + PLAYER_CONFIG.baseAcceleration * run.elapsedSeconds)) < 1e-8);
     assert.equal(run.snapshot(false, true).speed, 0);
-    assert.ok(Math.abs(run.elapsedSeconds - firstDestinationWorld / selectedSpeed) < 1e-8);
+    const expectedEndSpeed = Math.sqrt(selectedSpeed ** 2 + 2 * PLAYER_CONFIG.baseAcceleration * firstDestinationWorld);
+    const expectedTime = 2 * firstDestinationWorld / (selectedSpeed + expectedEndSpeed);
+    assert.ok(Math.abs(run.elapsedSeconds - expectedTime) < 1e-6);
     const frozen = { ...run.player.state };
     const frozenTime = run.elapsedSeconds;
     const frozenAverage = run.averageSpeed;
-    assert.ok(Math.abs(frozenAverage - selectedSpeed / RUN_CONFIG.unitsPerMeter) < 1e-8);
+    assert.ok(Math.abs(frozenAverage - (selectedSpeed + expectedEndSpeed) / 2 / RUN_CONFIG.unitsPerMeter) < 1e-6);
     const ticks = Math.round(fps * LANDMARK_CONFIG.celebrationSeconds);
     for (let i = 0; i < ticks - 1; i++) {
       run.update({ ...neutral, horizontalAxis: -1, verticalAxis: 1, jumpPressed: true }, 1000 / fps);
@@ -184,8 +189,8 @@ test("30/60/144 FPS stop at exact meters, suppress gameplay for 2.5s, and resume
     run.update(neutral, 1000 / fps);
     assert.equal(run.status, "running");
     assert.equal(run.player.state.distanceTravelled, firstDestinationWorld);
-    assert.equal(run.player.state.currentSpeed, selectedSpeed);
-    assert.equal(run.snapshot(false, true).speed, selectedSpeed / RUN_CONFIG.unitsPerMeter);
+    assert.equal(run.player.state.currentSpeed, arrivalSpeed);
+    assert.equal(run.snapshot(false, true).speed, arrivalSpeed / RUN_CONFIG.unitsPerMeter);
     assert.equal(run.averageSpeed, frozenAverage);
     assert.equal(run.player.state.courseX, 0);
     assert.equal(h.visible, null);
@@ -193,6 +198,7 @@ test("30/60/144 FPS stop at exact meters, suppress gameplay for 2.5s, and resume
     assert.equal(run.bestRecord.distance, 900);
     run.update(neutral, 1000 / fps);
     assert.ok(run.player.state.distanceTravelled > firstDestinationWorld);
+    assert.ok(Math.abs(run.player.state.baseSpeed - frozen.baseSpeed - PLAYER_CONFIG.baseAcceleration / fps) < 1e-8);
     assert.deepEqual(h.arrived, ["weather-marker"]);
   }
 });
@@ -219,7 +225,7 @@ test("collision before or exactly at arrival wins, without an arrival callback o
     const h = harness();
     const run = new RunSystem(undefined, () => 0.5, h.system);
     approachFirst(run, 60);
-    run.obstacles.items.push({ id: -1, courseX: 0, distance: contactWorld + RUN_CONFIG.collisionHalfDepth, type: "supply-crate", startLane: 3 });
+    run.obstacles.items.push(createObstacle(-1, "supply-crate", 3, contactWorld + RUN_CONFIG.collisionHalfDepth));
     for (let frame = 0; frame < 60; frame++) run.update(neutral, 1000 / 60);
     assert.equal(run.status, "gameover");
     assert.equal(run.player.state.distanceTravelled, contactWorld);

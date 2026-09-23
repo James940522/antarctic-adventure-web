@@ -89,8 +89,8 @@ export class RunSystem {
       ? Math.max(0, travelled > 0 ? (destinationDistance - previous.distanceTravelled) / travelled : 0) : Infinity;
     // At uncapped speeds one frame can cross rows outside the previous view.
     // Generate those rows before collision, retaining every obstacle along the sweep.
-    this.obstacles.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled));
-    this.items.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled), this.obstacles.items);
+    this.obstacles.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled), this.player.state.currentSpeed);
+    this.items.update(previous.distanceTravelled, Math.min(destinationDistance, this.player.state.distanceTravelled), this.obstacles.items, this.obstacles.viewDistance);
     const hit = this.contacts.resolve(previous, this.player.state, this.player.jumpMotion,
       delta / 1000, Math.min(1, arrivalFraction), this.obstacles.items, this.items);
     if (hit && hit.fraction <= arrivalFraction) {
@@ -109,7 +109,7 @@ export class RunSystem {
       this.player.stopAt(previous, arrivalFraction);
       this.player.arriveAt(destinationDistance);
       this.elapsedSeconds += delta / 1000 * arrivalFraction;
-      this.obstacles.update(destinationDistance);
+      this.obstacles.update(destinationDistance, destinationDistance, this.player.state.selectedSpeed);
       this.items.prune(destinationDistance);
       // Store all effect clocks while suppressing both abilities and visuals.
       // Do this before the arrival callback/render so the first celebration frame is clean.
@@ -118,7 +118,7 @@ export class RunSystem {
       return false;
     }
     this.elapsedSeconds += delta / 1000;
-    this.obstacles.update(this.player.state.distanceTravelled);
+    this.obstacles.update(this.player.state.distanceTravelled, this.player.state.distanceTravelled, this.player.state.currentSpeed);
     this.items.prune(this.player.state.distanceTravelled);
     this.landmarks.update(this.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter);
     return false;

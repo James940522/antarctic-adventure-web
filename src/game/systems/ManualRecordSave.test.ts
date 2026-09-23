@@ -1,3 +1,4 @@
+import { createObstacle } from "./ObstacleSystem.ts";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LANDMARK_CONFIG } from "../config/constants.ts";
@@ -14,7 +15,7 @@ const neutral: GameInputState = {
 const player = { id: "550e8400-e29b-41d4-a716-446655440000", nickname: "James" };
 function finishedRun() {
   const run = new RunSystem();
-  run.obstacles.items.splice(0, run.obstacles.items.length, { id: 1, type: "supply-crate", startLane: 3, courseX: 0, distance: 100 });
+  run.obstacles.items.splice(0, run.obstacles.items.length, createObstacle(1, "supply-crate", 3, 100));
   for (let i = 0; i < 20; i++) run.update(neutral, 50);
   assert.equal(run.status, "gameover");
   return run;
@@ -29,7 +30,7 @@ test("run identity survives movement, pause and game over; retry and new games g
   run.update(neutral, 50);
   assert.equal(run.snapshot(true, false).runId, id);
   run.setPaused(false);
-  run.obstacles.items.splice(0, run.obstacles.items.length, { id: 1, type: "supply-crate", startLane: 3, courseX: 0, distance: 100 });
+  run.obstacles.items.splice(0, run.obstacles.items.length, createObstacle(1, "supply-crate", 3, 100));
   for (let i = 0; i < 20; i++) run.update(neutral, 50);
   assert.equal(run.status, "gameover");
   assert.equal(run.snapshot(false, true).runId, id);

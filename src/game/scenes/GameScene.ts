@@ -15,6 +15,7 @@ import { ItemView } from "@/game/systems/ItemView";
 import { LandmarkSystem } from "@/game/systems/LandmarkSystem";
 import { LandmarkView } from "@/game/systems/LandmarkView";
 import type { GameSnapshot } from "@/game/types/game.types";
+import { ObstacleDebugScenario } from "@/game/systems/ObstacleDebugScenario";
 
 export class GameScene extends Scene {
   static readonly KEY = "GameScene";
@@ -35,6 +36,8 @@ export class GameScene extends Scene {
   private skipNextDelta = true;
   private nextHudRefresh = 0;
   private restartAt = 0;
+  private obstacleDebug?: ObstacleDebugScenario;
+  private obstacleDebugText?: GameObjects.Text;
 
   constructor(inputTarget: HTMLElement) {
     super(GameScene.KEY);
@@ -53,6 +56,15 @@ export class GameScene extends Scene {
         this.nextHudRefresh = 0;
       });
       this.run = new RunSystem(this.records.value, Math.random, this.landmarks);
+      if (process.env.NODE_ENV === "development") {
+        this.obstacleDebug = ObstacleDebugScenario.fromSearch(window.location.search);
+        if (this.obstacleDebug) {
+          this.obstacleDebug.reset(this.run);
+          this.obstacleDebugText = this.add.text(480, 110, "", {
+            fontSize: "14px", color: "#ffffff", backgroundColor: "#173b51", padding: { x: 8, y: 5 },
+          }).setOrigin(0.5, 0).setDepth(1001);
+        }
+      }
       this.courseView = new CourseView(this, projection);
       this.itemView = new ItemView(this, projection);
       this.playerView = new PlayerView(this, projection);
@@ -80,7 +92,7 @@ export class GameScene extends Scene {
     const input = this.controls.update(active && (inputActive || this.run.isPaused));
     if (this.controls.pausePressed) this.setPaused(!this.run.isPaused);
     if (active && !this.run.isPaused && previousStatus !== "gameover") {
-      const ended = this.run.update(input, this.skipNextDelta ? 0 : delta);
+      const ended = this.run.update(this.obstacleDebug?.input(this.run, input) ?? input, this.skipNextDelta ? 0 : delta);
       this.skipNextDelta = false;
       if (previousStatus !== this.run.status) {
         this.controls.reset();
@@ -103,6 +115,8 @@ export class GameScene extends Scene {
     } else {
       this.skipNextDelta = true;
     }
+    if (this.projection) this.projection.viewDistance = this.run.obstacles.viewDistance;
+    if (this.obstacleDebug) this.obstacleDebugText?.setText(this.obstacleDebug.label(this.run));
     this.courseView?.render(this.run.player.state.distanceTravelled, this.run.obstacles.items);
     this.itemView?.render(this.run.player.state.distanceTravelled, this.run.items.items, this.run.effects.ghostSeconds);
     this.playerView?.render(this.run.player.state, this.landmarks?.celebrationElapsedSeconds ?? null, this.run.effects.ghostSeconds);
@@ -115,6 +129,7 @@ export class GameScene extends Scene {
 
   private publishSnapshot(): void {
     if (!this.run || !this.landmarks) return;
+    if (this.obstacleDebug) this.game.canvas.setAttribute("aria-label", this.obstacleDebug.label(this.run));
     const document = this.inputTarget.ownerDocument;
     const snapshot: GameSnapshot = {
       ...this.run.snapshot(
@@ -129,6 +144,7 @@ export class GameScene extends Scene {
   private restart(): void {
     if (!this.run || this.run.status !== "gameover") return;
     this.run.restart();
+    this.obstacleDebug?.reset(this.run);
     this.controls?.reset();
     this.courseView?.reset();
     this.itemView?.reset();
@@ -190,6 +206,8 @@ export class GameScene extends Scene {
       this.itemView = undefined;
       this.landmarks = undefined;
       this.projection = this.scenery = undefined;
+      this.obstacleDebugText?.destroy();
+      this.obstacleDebug = this.obstacleDebugText = undefined;
       this.skipNextDelta = true;
       this.events.off(Scenes.Events.SHUTDOWN, cleanup);
       this.events.off(Scenes.Events.DESTROY, cleanup);
