@@ -7,8 +7,8 @@ import { CourseView } from "./CourseView.ts";
 import type { Obstacle } from "./ObstacleSystem.ts";
 import { PerspectiveSystem } from "./PerspectiveSystem.ts";
 
-test("every legal 3/5/7-lane placement renders one centered image, preserves aspect ratio, and reuses then releases its view", () => {
-  const images: Array<{ key: string; frame: string; x: number; y: number; scale: number; originX: number; originY: number; destroyed: boolean }> = [];
+test("every legal 3/5/7-lane placement renders one centered image at its configured dimensions and reuses then releases its view", () => {
+  const images: Array<{ key: string; frame: string; x: number; y: number; scaleX: number; scaleY: number; originX: number; originY: number; destroyed: boolean }> = [];
   const graphics = {
     clear() { return this; }, setDepth() { return this; }, fillStyle() { return this; },
     fillTriangle() { return this; }, lineStyle() { return this; }, lineBetween() { return this; },
@@ -17,10 +17,10 @@ test("every legal 3/5/7-lane placement renders one centered image, preserves asp
   const scene = { add: {
     graphics: () => graphics,
     image: (x: number, y: number, key: string, frame: string) => {
-      const image = { x, y, key, frame, scale: 1, originX: 0, originY: 0, destroyed: false,
+      const image = { x, y, key, frame, scaleX: 1, scaleY: 1, originX: 0, originY: 0, destroyed: false,
         setOrigin(x: number, y: number) { this.originX = x; this.originY = y; return this; },
         setPosition(x: number, y: number) { this.x = x; this.y = y; return this; },
-        setScale(scale: number) { this.scale = scale; return this; },
+        setScale(x: number, y = x) { this.scaleX = x; this.scaleY = y; return this; },
         setDepth() { return this; }, destroy() { this.destroyed = true; },
       };
       images.push(image);
@@ -47,7 +47,7 @@ test("every legal 3/5/7-lane placement renders one centered image, preserves asp
     view.render(obstacle.distance - 600, [obstacle]);
     assert.equal(images.length, index + 1, "wide types still use exactly one image");
     const image = images[index];
-    const farScale = image.scale;
+    const farScale = image.scaleX;
     assert.equal(image.x, projection.project(obstacle.courseX, 600).x);
     view.render(obstacle.distance, [obstacle]);
     view.render(obstacle.distance, [obstacle]);
@@ -57,9 +57,9 @@ test("every legal 3/5/7-lane placement renders one centered image, preserves asp
     assert.deepEqual([image.originX, image.originY], [0.5, 1]);
     assert.equal(image.x, projection.project(obstacle.courseX, 0).x);
     assert.equal(image.y, projection.contactY);
-    assert.ok(image.scale > farScale);
-    assert.ok(Math.abs(image.scale * definition.assetFrame[2] - obstacle.visualWidth) < 1e-9);
-    assert.ok(Math.abs(image.scale * definition.assetFrame[3] - obstacle.visualHeight) < 1e-9);
+    assert.ok(image.scaleX > farScale);
+    assert.ok(Math.abs(image.scaleX * definition.assetFrame[2] - obstacle.visualWidth) < 1e-9);
+    assert.ok(Math.abs(image.scaleY * definition.assetFrame[3] - obstacle.visualHeight) < 1e-9);
     if (index > 0) assert.equal(images[index - 1].destroyed, true);
   }
   view.reset();

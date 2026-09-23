@@ -17,6 +17,8 @@ export type ObstacleDefinition = {
   collisionType: "solid" | "groundHazard";
   jumpable: true;
   visualScale: number;
+  /** Compress artwork vertically without changing lane coverage or jump clearance. */
+  visualHeightScale?: number;
   hitbox: { widthRatio: number; heightRatio: number };
   /** Optional clearance independent of tall decorative artwork. */
   requiredJumpHeight?: number;
@@ -61,7 +63,8 @@ export function obstacleGeometry(definition: ObstacleDefinition, occupiedLanes: 
   const courseX = (lanes[first] + lanes[last]) / 2;
   const nearHalfWidth = GAME_SIZE.width / 2 - PLAYER_VIEW.screenMargin;
   const visualWidth = occupiedWidth * nearHalfWidth * definition.visualScale;
-  const visualHeight = visualWidth * definition.assetFrame[3] / definition.assetFrame[2];
+  const visualHeight = visualWidth * definition.assetFrame[3] / definition.assetFrame[2]
+    * (definition.visualHeightScale ?? 1);
   return {
     courseX, occupiedWidth, visualWidth, visualHeight,
     // Full barriers cover the complete track, including the player's ±1 edge positions.
@@ -149,6 +152,7 @@ export const OBSTACLE_DEFINITIONS: Readonly<Record<ObstacleId, ObstacleDefinitio
     id: "barricade", name: "바리케이드", assetKey: "obstacle-barricade",
     assetPath: "/asset/img/obstacle/barricade.png", assetFrame: [3, 512, 1248, 458],
     laneSpan: "full", collisionType: "solid", jumpable: true, visualScale: 1.04,
+    visualHeightScale: 0.3, // Low hurdle: about 100px tall at contact, below the 150px jump apex.
     hitbox: { widthRatio: 1, heightRatio: 0.22 }, requiredJumpHeight: 72,
   },
 };

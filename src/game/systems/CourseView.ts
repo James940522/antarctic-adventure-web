@@ -73,7 +73,8 @@ export class CourseView {
       view.lastSeen = this.renderTick;
       const point = this.projection.project(obstacle.courseX, obstacle.distance - distance);
       view.body.setPosition(point.x, point.y)
-        .setScale(point.scale * obstacle.visualWidth / definition.assetFrame[2]).setDepth(point.y);
+        .setScale(point.scale * obstacle.visualWidth / definition.assetFrame[2],
+          point.scale * obstacle.visualHeight / definition.assetFrame[3]).setDepth(point.y);
       view.label?.setPosition(point.x, point.y - point.scale * obstacle.visualHeight - 4);
       if (this.hitboxes) this.drawHitbox(obstacle, distance);
     }
