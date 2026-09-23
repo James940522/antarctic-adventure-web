@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { LocalPlayer } from "@/game/types/local-player.types";
 import type { RankingEntry } from "@/game/types/ranking.types";
 import { RankingStore } from "@/game/systems/RankingStore";
-import { formatKilometers } from "@/game/utils/formatDistance";
+import { formatDistance } from "@/game/utils/formatDistance";
 import styles from "./RankingBoard.module.css";
 
 function Crown({ rank }: { rank: number }) {
@@ -14,9 +14,9 @@ function RankingRow({ row, playerId }: { row: RankingEntry; playerId: string }) 
   const own = row.playerId === playerId;
   return <tr className={own ? styles.own : undefined} aria-label={own ? `내 순위 ${row.rank}위` : undefined}>
     <td className={styles.rank}><span className={styles.srOnly}>{row.rank <= 3 ? `${row.rank}위` : ""}</span>{row.rank <= 3 ? <Crown rank={row.rank} /> : row.rank}</td>
-    <td className={styles.name}>{own && <span className={styles.you}>YOU</span>}<span>{row.nickname}</span><small className={styles.mobileDetails}>STAGE {row.stage} · {formatKilometers(row.distance)}</small></td>
+    <td className={styles.name}>{own && <span className={styles.you}>YOU</span>}<span>{row.nickname}</span><small className={styles.mobileDetails}>STAGE {row.stage} · {formatDistance(row.distance)}</small></td>
     <td className={styles.score}>{row.score.toLocaleString()}</td>
-    <td className={styles.detail}>{row.stage}</td><td className={styles.detail}>{formatKilometers(row.distance)}</td>
+    <td className={styles.detail}>{row.stage}</td><td className={styles.detail}>{formatDistance(row.distance)}</td>
   </tr>;
 }
 
@@ -61,7 +61,7 @@ export function RankingBoard({ player, onClose, onMenu, onRetry, onNickname }: {
         </div>}
       </main>
       <aside className={styles.personal} aria-label="내 온라인 기록">
-        <div><span>내 최고 SCORE</span><strong>{state.status === "ready" && mine ? mine.score.toLocaleString() : state.status === "loading" ? "…" : "—"}</strong>{mine && <small>{formatKilometers(mine.distance)} · STAGE {mine.stage}</small>}</div>
+        <div><span>내 최고 SCORE</span><strong>{state.status === "ready" && mine ? mine.score.toLocaleString() : state.status === "loading" ? "…" : "—"}</strong>{mine && <small>{formatDistance(mine.distance)} · STAGE {mine.stage}</small>}</div>
         <div><span>현재 순위</span><strong>{state.status === "ready" ? mine ? `${mine.rank.toLocaleString()} / ${data!.totalPlayers.toLocaleString()}` : "미등록" : state.status === "loading" ? "…" : "—"}</strong><small>{mine ? `최고 기록 이름: ${mine.nickname}` : "직접 저장한 기록만 반영됩니다."}</small></div>
       </aside>
       <footer className={styles.footer}>

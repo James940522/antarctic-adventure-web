@@ -266,8 +266,8 @@ test("all ten stops occur once and the run continues past the final 100km destin
   assert.deepEqual(h.arrived, LANDMARKS.map(item => item.id));
 });
 
-test("total distance formatting changes at 1000 m while preserving two km decimals", () => {
-  for (const [meters, expected] of [[0, "0 m"], [50, "50 m"], [950, "950 m"], [999.9, "999 m"], [1000, "1.00 km"], [1250, "1.25 km"], [3420, "3.42 km"], [20000, "20.00 km"]] as const) {
+test("total distance formatting stays in whole meters past 1000 m", () => {
+  for (const [meters, expected] of [[0, "0 m"], [50, "50 m"], [950, "950 m"], [999.9, "999 m"], [1000, "1,000 m"], [1250, "1,250 m"], [3420, "3,420 m"], [20000, "20,000 m"]] as const) {
     assert.equal(formatDistance(meters), expected);
   }
 });

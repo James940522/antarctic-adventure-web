@@ -4,7 +4,7 @@ import { useState, useSyncExternalStore } from "react";
 import { createGameRecord, ManualRecordSave } from "@/game/systems/ManualRecordSave";
 import type { GameSnapshot } from "@/game/types/game.types";
 import type { LocalPlayer } from "@/game/types/local-player.types";
-import { formatKilometers } from "@/game/utils/formatDistance";
+import { formatDistance } from "@/game/utils/formatDistance";
 import { SCORE_CONFIG } from "@/game/config/constants";
 import styles from "./GameOverPanel.module.css";
 
@@ -23,11 +23,11 @@ export function GameOverPanel({ run, player, onRestart, onMenu, onRanking }: {
         <dl className={styles.stats}>
           <div><dt>SCORE</dt><dd>{run.score.toLocaleString()}</dd></div>
           <div><dt>STAGE</dt><dd>{run.stage}</dd></div>
-          <div><dt>DISTANCE</dt><dd>{formatKilometers(run.distance)}</dd></div>
+          <div><dt>DISTANCE</dt><dd>{formatDistance(run.distance)}</dd></div>
         </dl>
-        <p className={styles.average}>평균 <strong>{run.averageSpeed.toFixed(1)} m/s</strong>로 <strong>{formatKilometers(run.distance)}</strong> 전진</p>
+        <p className={styles.average}>평균 <strong>{run.averageSpeed.toFixed(1)} m/s</strong>로 <strong>{formatDistance(run.distance)}</strong> 전진</p>
         <p className={styles.note}>점수 = 거리(m) × 평균 속도 ÷ {SCORE_CONFIG.referenceSpeed} · 반올림</p>
-        <p className={styles.best}>이 브라우저 최장 거리 {formatKilometers(run.bestDistance)}<br />
+        <p className={styles.best}>이 브라우저 최장 거리 {formatDistance(run.bestDistance)}<br />
           당시 평균 {run.bestAverageSpeed === null ? "미측정" : `${run.bestAverageSpeed.toFixed(1)} m/s`}</p>
       </div>
       <div className={styles.actions}>

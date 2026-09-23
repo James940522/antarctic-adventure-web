@@ -1,5 +1,5 @@
 import type { GameSnapshot } from "@/game/types/game.types";
-import { formatKilometers } from "@/game/utils/formatDistance";
+import { formatDistance } from "@/game/utils/formatDistance";
 import styles from "./GameViewport.module.css";
 import { GameOverPanel } from "./GameOverPanel";
 import type { LocalPlayer } from "@/game/types/local-player.types";
@@ -14,8 +14,8 @@ export function GameHud({ run, onRestart, onPause, onMenu, onRanking, player }: 
     <div className={`${styles.hudTop} absolute inset-x-0 top-0 grid grid-cols-[1fr_1fr_1fr] items-start gap-[1%] bg-gradient-to-b from-slate-950/85 to-slate-950/0 px-[3%] pb-[5%] pt-[2%] text-white`}>
       <div>
         <p className="text-[clamp(8px,1.3cqw,12px)] font-bold tracking-widest text-cyan-200">WHITE HORIZON / ANTARCTIC RUN</p>
-        <p className="text-[clamp(20px,4cqw,40px)] font-black leading-tight tabular-nums" aria-label={`전진 거리 ${run.distance / 1000}킬로미터`}>
-          {formatKilometers(run.distance)}
+        <p className="text-[clamp(20px,4cqw,40px)] font-black leading-tight tabular-nums" aria-label={`전진 거리 ${Math.floor(run.distance)}미터`}>
+          {formatDistance(run.distance)}
         </p>
         <p className="text-[clamp(9px,1.5cqw,14px)] font-bold tabular-nums text-lime-200">{gameover ? "SCORE" : "예상 SCORE"} {run.score.toLocaleString()}</p>
         <p className="text-[clamp(9px,1.5cqw,14px)] tabular-nums text-cyan-100" aria-label={`평균 속도 ${averageSpeed}미터 매초`}>평균 {averageSpeed} m/s</p>
@@ -26,7 +26,7 @@ export function GameHud({ run, onRestart, onPause, onMenu, onRanking, player }: 
         {next && <p className="text-[clamp(10px,1.7cqw,16px)] tabular-nums text-cyan-100">{arrival ? "도착!" : `${next.distanceRemaining.toLocaleString()} m`}</p>}
       </div>
       <div className="text-right text-[clamp(9px,1.5cqw,14px)]">
-        <p className="tabular-nums">최장 거리 <strong>{formatKilometers(run.bestDistance)}</strong></p>
+        <p className="tabular-nums">최장 거리 <strong>{formatDistance(run.bestDistance)}</strong></p>
         {bestAverageSpeed !== undefined && <p className="text-[clamp(8px,1.2cqw,12px)] tabular-nums text-slate-300">당시 평균 {bestAverageSpeed} m/s</p>}
         <p className="mt-1 font-bold tabular-nums text-lime-300" aria-label={`속도 ${run.speed}미터 매초`}>
           속도 {run.speed.toLocaleString()} <span className="font-normal">m/s</span>

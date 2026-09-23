@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { GameInputState } from "../input/input.types.ts";
-import { formatKilometers } from "../utils/formatDistance.ts";
+import { formatDistance } from "../utils/formatDistance.ts";
 import { calculateScore } from "./ScoreSystem.ts";
 import { RunSystem } from "./RunSystem.ts";
 import { createGameRecord } from "./ManualRecordSave.ts";
@@ -55,7 +55,7 @@ test("collision finalizes one score at every frame rate and the payload uses tha
     const record = createGameRecord(result, { id: "550e8400-e29b-41d4-a716-446655440000", nickname: "Penguin" });
     assert.equal(record.score, 210);
     assert.equal(record.distance, 98);
-    assert.equal(formatKilometers(result.distance), "0.098 km");
+    assert.equal(formatDistance(result.distance), "98 m");
     run.update({ ...neutral, verticalAxis: -1 }, 50);
     assert.equal(run.snapshot(false, true).score, 210);
     run.restart();
@@ -63,9 +63,9 @@ test("collision finalizes one score at every frame rate and the payload uses tha
   }
 });
 
-test("kilometers preserve the same meter precision below and above 1km", () => {
+test("distance displays whole meters with thousands separators at every distance", () => {
   for (const [meters, expected] of [
-    [0, "0.000 km"], [1, "0.001 km"], [408, "0.408 km"], [999, "0.999 km"],
-    [1000, "1.000 km"], [1234, "1.234 km"], [10000, "10.000 km"], [100001, "100.001 km"],
-  ] as const) assert.equal(formatKilometers(meters), expected);
+    [0, "0 m"], [1, "1 m"], [408, "408 m"], [999, "999 m"],
+    [1000, "1,000 m"], [1234, "1,234 m"], [2972, "2,972 m"], [10000, "10,000 m"], [100001, "100,001 m"],
+  ] as const) assert.equal(formatDistance(meters), expected);
 });
