@@ -28,7 +28,7 @@
 .dialogActions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .dialogHint { margin-top: 18px; font-size: 11px; color: #a7c7d6; }
 .developerName { margin-top: 12px; font-size: 30px; font-weight: 800; color: #c4ed83; }
-.socialLinks { display: flex; justify-content: center; gap: 18px; margin: 22px 0 16px; }
+.socialLinks { display: flex; flex-wrap: wrap; justify-content: center; gap: 18px; margin: 22px 0 16px; }
 .socialLinks a { display: grid; justify-items: center; gap: 7px; min-width: 62px; padding: 8px 4px; border-radius: 4px; font-size: 11px; color: #cfeaf4; }
 .socialLinks a:hover { color: #c4ed83; background: #ffffff10; }
 .socialLinks svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }

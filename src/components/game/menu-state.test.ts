@@ -26,5 +26,6 @@ test("developer contact destinations match the supplied links", () => {
   assert.deepEqual(DEVELOPER, {
     name: "James", email: "james940522@gmail.com", mailto: "mailto:james940522@gmail.com",
     github: "https://github.com/James940522", instagram: "https://www.instagram.com/james.7507/",
+    linkedin: "https://www.linkedin.com/in/james940522/",
   });
 });
