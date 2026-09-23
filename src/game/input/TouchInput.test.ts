@@ -120,21 +120,96 @@ function fixture() {
     hasPointerCapture: (id: number) => captures.has(id),
     releasePointerCapture: (id: number) => captures.delete(id),
   };
+  const otherButton = { ...button, dataset: { gameAction: "jump", pressed: "false" }, closest: () => otherButton };
+  const buttons = [button, otherButton];
   let focused = false;
   const target = Object.assign(new EventTarget(), {
-    ownerDocument: document, contains: (element: unknown) => element === button,
-    focus: () => { focused = true; }, querySelectorAll: () => [button],
+    ownerDocument: document, contains: (element: unknown) => buttons.includes(element as typeof button),
+    focus: () => { focused = true; }, querySelectorAll: () => buttons,
   });
   const input = new TouchInput(target as unknown as HTMLElement);
-  function dispatch(to: EventTarget, type: string, id = 1) {
+  function dispatch(to: EventTarget, type: string, id = 1, eventTarget: unknown = button, properties = {}) {
     const event = new Event(type, { cancelable: true });
-    Object.defineProperty(event, "target", { value: button });
-    Object.assign(event, { pointerId: id, pointerType: "touch", button: 0 });
+    Object.defineProperty(event, "target", { value: eventTarget });
+    Object.assign(event, { pointerId: id, pointerType: "touch", button: 0, ...properties });
     to.dispatchEvent(event);
     return event;
   }
-  return { target, window, document, input, dispatch, captures, button, focused: () => focused };
+  return { target, window, document, input, dispatch, captures, button, otherButton, focused: () => focused };
 }
+
+test("rapid taps suppress browser gestures and compatibility clicks without dropping the second tap", () => {
+  const f = fixture();
+  const manager = new InputManager(idle(), idle(), f.input);
+  f.button.dataset.gameAction = "up";
+  for (let id = 1; id <= 2; id++) {
+    f.dispatch(f.target, "pointerdown", id);
+    assert.equal(f.dispatch(f.target, "touchstart", id).defaultPrevented, true);
+    assert.equal(f.button.dataset.pressed, "true");
+    f.dispatch(f.window, "pointerup", id);
+    assert.equal(f.button.dataset.pressed, "false");
+    assert.equal(manager.update().accelerate, true);
+    // Browsers may deliver click after pointerup, with either click count.
+    for (const detail of [0, id]) {
+      assert.equal(f.dispatch(f.target, "click", id, f.button, { detail }).defaultPrevented, true);
+    }
+    assert.equal(manager.update().accelerate, false);
+  }
+  assert.equal(f.dispatch(f.target, "dblclick").defaultPrevented, true);
+  assert.equal(f.dispatch(f.target, "contextmenu").defaultPrevented, true);
+  assert.deepEqual(f.input.read(), createDeviceInput());
+  manager.destroy();
+});
+
+test("each physical button has immediate feedback while duplicate jump buttons share one action", () => {
+  const f = fixture();
+  f.button.dataset.gameAction = "jump";
+  f.dispatch(f.target, "pointerdown", 1);
+  assert.equal(f.button.dataset.pressed, "true");
+  assert.equal(f.otherButton.dataset.pressed, "false");
+  assert.equal(f.input.read().jumpPressed, true);
+  f.dispatch(f.target, "pointerdown", 2, f.otherButton);
+  assert.equal(f.otherButton.dataset.pressed, "true");
+  assert.equal(f.input.read().jumpPressed, false);
+  f.dispatch(f.window, "pointerup", 1);
+  assert.equal(f.button.dataset.pressed, "false");
+  assert.equal(f.otherButton.dataset.pressed, "true");
+  assert.equal(f.input.read().jump, true);
+  f.input.reset();
+  assert.equal(f.otherButton.dataset.pressed, "false");
+  assert.equal(f.captures.size, 0);
+  f.input.destroy();
+});
+
+test("feedback and window release still work when pointer capture is unavailable", () => {
+  const f = fixture();
+  f.button.setPointerCapture = () => { throw new Error("No active pointer"); };
+  f.dispatch(f.target, "pointerdown");
+  assert.equal(f.button.dataset.pressed, "true");
+  assert.equal(f.input.read().left, true);
+  f.dispatch(f.window, "pointerup");
+  assert.equal(f.button.dataset.pressed, "false");
+  assert.equal(f.input.read().left, false);
+  f.input.destroy();
+});
+
+test("gesture guards leave other UI alone, preserve accessible clicks, and detach on destroy", () => {
+  const f = fixture();
+  for (const type of ["touchstart", "dblclick", "contextmenu", "click"]) {
+    assert.equal(f.dispatch(f.target, type, 1, {}).defaultPrevented, false);
+    f.button.disabled = true;
+    assert.equal(f.dispatch(f.target, type).defaultPrevented, false);
+    f.button.disabled = false;
+  }
+  f.button.dataset.gameAction = "jump";
+  f.dispatch(f.target, "click", 1, f.button, { detail: 0, pointerType: "" });
+  assert.equal(f.input.read().jumpPressed, true);
+  assert.equal(f.input.read().jumpPressed, false);
+  f.input.destroy();
+  for (const type of ["touchstart", "dblclick", "contextmenu", "click"]) {
+    assert.equal(f.dispatch(f.target, type).defaultPrevented, false);
+  }
+});
 
 test("pointer capture supports holding off-button and cancel releases only that finger", () => {
   const f = fixture();

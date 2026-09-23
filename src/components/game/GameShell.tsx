@@ -40,6 +40,23 @@ export function GameShell() {
   };
 
   useEffect(() => {
+    const preventBrowserSelection = (event: Event) => {
+      const target = event.target;
+      const element = target instanceof Element ? target : target instanceof Node ? target.parentElement : null;
+      if (element?.closest('input, textarea, [contenteditable]:not([contenteditable="false"])')) return;
+      event.preventDefault();
+    };
+    document.addEventListener("dblclick", preventBrowserSelection);
+    document.addEventListener("contextmenu", preventBrowserSelection);
+    document.addEventListener("selectstart", preventBrowserSelection);
+    return () => {
+      document.removeEventListener("dblclick", preventBrowserSelection);
+      document.removeEventListener("contextmenu", preventBrowserSelection);
+      document.removeEventListener("selectstart", preventBrowserSelection);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!audio.current) return;
     const controller = new BackgroundMusic(audio.current);
     music.current = controller;

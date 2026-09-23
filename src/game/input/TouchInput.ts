@@ -6,7 +6,7 @@ export type TouchAction = typeof ACTIONS[number];
 export class TouchInput implements InputSource {
   private readonly target?: HTMLElement;
   private readonly pointers = new Map<number, TouchAction>();
-  private readonly captures = new Map<number, HTMLButtonElement>();
+  private readonly buttons = new Map<number, HTMLButtonElement>();
   private readonly pending = new Set<TouchAction>();
   private readonly state = createDeviceInput();
 
@@ -18,6 +18,11 @@ export class TouchInput implements InputSource {
     target?.addEventListener("keyup", this.onKeyUp);
     target?.addEventListener("focusout", this.onFocusOut);
     target?.addEventListener("click", this.onClick);
+    // Pointer events own gameplay. Cancel browser gestures separately so rapid
+    // taps and long holds cannot zoom, select text, or open a context menu.
+    target?.addEventListener("touchstart", this.preventButtonGesture, { passive: false });
+    target?.addEventListener("dblclick", this.preventButtonGesture);
+    target?.addEventListener("contextmenu", this.preventButtonGesture);
     const window = target?.ownerDocument.defaultView;
     window?.addEventListener("pointerup", this.onPointerUp);
     window?.addEventListener("pointercancel", this.onPointerUp);
@@ -28,18 +33,19 @@ export class TouchInput implements InputSource {
 
   get isActive(): boolean { return this.pointers.size > 0 || this.pending.size > 0; }
 
-  press(id: number, action: TouchAction): void {
+  press(id: number, action: TouchAction, button?: HTMLButtonElement): void {
     if (this.pointers.has(id)) return;
     if (!this.held(action)) this.pending.add(action);
     this.pointers.set(id, action);
+    if (button) this.buttons.set(id, button);
     this.updateButtons();
   }
 
   release(id: number): void {
-    this.pointers.delete(id);
-    const button = this.captures.get(id);
-    this.captures.delete(id);
-    if (button?.hasPointerCapture(id)) button.releasePointerCapture(id);
+    if (!this.pointers.delete(id)) return;
+    const button = this.buttons.get(id);
+    this.buttons.delete(id);
+    if (id >= 0 && button?.hasPointerCapture(id)) button.releasePointerCapture(id);
     this.updateButtons();
   }
 
@@ -55,13 +61,13 @@ export class TouchInput implements InputSource {
   }
 
   reset = (): void => {
-    const hadInput = this.isActive || this.captures.size > 0;
+    const hadInput = this.isActive;
     this.pointers.clear();
     this.pending.clear();
-    for (const [id, button] of this.captures) {
-      if (button.hasPointerCapture(id)) button.releasePointerCapture(id);
+    for (const [id, button] of this.buttons) {
+      if (id >= 0 && button.hasPointerCapture(id)) button.releasePointerCapture(id);
     }
-    this.captures.clear();
+    this.buttons.clear();
     Object.assign(this.state, createDeviceInput());
     if (hadInput) this.updateButtons();
   };
@@ -75,6 +81,9 @@ export class TouchInput implements InputSource {
     target?.removeEventListener("keyup", this.onKeyUp);
     target?.removeEventListener("focusout", this.onFocusOut);
     target?.removeEventListener("click", this.onClick);
+    target?.removeEventListener("touchstart", this.preventButtonGesture);
+    target?.removeEventListener("dblclick", this.preventButtonGesture);
+    target?.removeEventListener("contextmenu", this.preventButtonGesture);
     const window = target?.ownerDocument.defaultView;
     window?.removeEventListener("pointerup", this.onPointerUp);
     window?.removeEventListener("pointercancel", this.onPointerUp);
@@ -104,10 +113,10 @@ export class TouchInput implements InputSource {
     if (!action) return;
     event.preventDefault();
     this.target?.focus({ preventScroll: true });
-    this.press(event.pointerId, action);
+    this.press(event.pointerId, action, button);
     // Capture keeps a finger held when it slides off the button. Window listeners
     // also release it when capture is unavailable or interrupted by the browser.
-    try { button.setPointerCapture(event.pointerId); this.captures.set(event.pointerId, button); }
+    try { button.setPointerCapture(event.pointerId); }
     catch { /* Synthetic/accessibility input may have no active pointer. */ }
   };
 
@@ -122,7 +131,7 @@ export class TouchInput implements InputSource {
     if (!button || !["Space", "Enter"].includes(event.code)) return;
     event.preventDefault();
     const action = this.actionFor(button);
-    if (action && !event.repeat) this.press(-1 - ACTIONS.indexOf(action), action);
+    if (action && !event.repeat) this.press(-1 - ACTIONS.indexOf(action), action, button);
   };
 
   private onKeyUp = (event: KeyboardEvent): void => {
@@ -139,9 +148,17 @@ export class TouchInput implements InputSource {
     if (action) this.release(-1 - ACTIONS.indexOf(action));
   };
 
-  private onClick = (event: MouseEvent): void => {
+  private preventButtonGesture = (event: Event): void => {
+    if (this.buttonFor(event) && event.cancelable) event.preventDefault();
+  };
+
+  private onClick = (event: MouseEvent | PointerEvent): void => {
     const button = this.buttonFor(event);
-    if (!button || event.detail !== 0) return;
+    if (!button) return;
+    event.preventDefault();
+    // Keep assistive-technology activation; pointer-generated clicks must not
+    // replay an action already handled on pointerdown, even with detail === 0.
+    if (event.detail !== 0 || ("pointerType" in event && event.pointerType)) return;
     const action = this.actionFor(button);
     if (action) { this.press(-100, action); this.release(-100); }
   };
@@ -151,9 +168,9 @@ export class TouchInput implements InputSource {
   };
 
   private updateButtons(): void {
+    const heldButtons = new Set(this.buttons.values());
     this.target?.querySelectorAll<HTMLButtonElement>("button[data-game-action]").forEach((button) => {
-      const action = this.actionFor(button);
-      button.dataset.pressed = String(Boolean(action && this.held(action)));
+      button.dataset.pressed = String(heldButtons.has(button));
     });
   }
 }

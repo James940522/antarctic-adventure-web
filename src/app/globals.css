@@ -1,1 +1,20 @@
 @import "tailwindcss";
+
+html {
+  touch-action: manipulation;
+}
+
+body, body * {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/* Keep native editing and paste available in the nickname field. */
+input, textarea,
+[contenteditable]:not([contenteditable="false"]),
+[contenteditable]:not([contenteditable="false"]) * {
+  -webkit-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}

@@ -61,14 +61,24 @@
   font-weight: 700;
   touch-action: none;
   user-select: none;
+  -webkit-user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   cursor: pointer;
   pointer-events: auto;
+  transition: background-color 90ms ease-out, border-color 90ms ease-out, box-shadow 90ms ease-out;
 }
 .control:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
-.control[data-pressed="true"] { background: rgb(56 189 248 / 38%); border-color: #e0f2fe; }
+.control[data-pressed="true"] {
+  background: rgb(14 116 144 / 72%);
+  border-color: #e0f2fe;
+  box-shadow: inset 0 3px 8px rgb(8 47 73 / 55%), inset 0 0 0 2px rgb(224 242 254 / 45%);
+  transition-duration: 0s;
+}
 .control:disabled { opacity: 0.25; cursor: default; pointer-events: none; }
-.control > span { pointer-events: none; }
+.control > span { display: inline-block; pointer-events: none; transition: transform 90ms ease-out; }
+/* Move only the label so the touch target stays fixed under the finger. */
+.control[data-pressed="true"] > span { transform: translateY(2px) scale(0.94); transition-duration: 0s; }
 .handControls {
   display: grid;
   width: clamp(144px, calc(var(--view-width) * 0.26), 224px);
@@ -80,7 +90,12 @@
 .speed { height: 48px; align-self: center; border-radius: 12px; font-size: 20px; line-height: 1; }
 .speed small { display: block; margin-top: 2px; font-size: 9px; font-weight: 500; }
 .jump { height: 72px; border-width: 2px; border-radius: 24px; background: rgb(190 242 100 / 24%); font-size: 18px; }
-.jump[data-pressed="true"] { background: rgb(190 242 100 / 42%); }
+.jump[data-pressed="true"] { background: rgb(77 124 15 / 72%); border-color: #ecfccb; box-shadow: inset 0 3px 8px rgb(26 46 5 / 55%), inset 0 0 0 2px rgb(217 249 157 / 55%); }
+
+@media (prefers-reduced-motion: reduce) {
+  .control, .control > span { transition: none; }
+  .control[data-pressed="true"] > span { transform: none; }
+}
 
 @media (max-width: 1024px), (pointer: coarse) {
   .stage { padding: 0; }
