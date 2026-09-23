@@ -71,7 +71,7 @@ test("the same obstacle approaches faster after accelerating beyond the former s
 });
 
 test("swept contact catches crossing, side entry and landing without distant false hits", () => {
-  assert.equal(collisionFraction(state(), state({ distanceTravelled: 200 }), box), 0.4);
+  assert.equal(collisionFraction(state(), state({ distanceTravelled: 200 }), box), 0.42);
   assert.equal(collisionFraction(state({ courseX: 0.5 }), state({ courseX: 0.5, distanceTravelled: 200 }), box), null);
   assert.equal(collisionFraction(state(), state({ distanceTravelled: 70 }), box), null);
   assert.notEqual(collisionFraction(state({ courseX: 0.5, distanceTravelled: 100 }), state({ distanceTravelled: 100 }), box), null);
@@ -87,7 +87,7 @@ test("collision freezes the exact contact distance and records it only once at d
     for (let frame = 0; frame < fps * 2; frame++) transitions += Number(run.update(neutral, 1000 / fps));
     assert.equal(transitions, 1);
     assert.equal(run.status, "gameover");
-    assert.ok(Math.abs(run.player.state.distanceTravelled - 80) < 1e-8);
+    assert.ok(Math.abs(run.player.state.distanceTravelled - 84) < 1e-8);
     assert.equal(run.bestRecord.distance, 8);
     assert.ok(Math.abs(run.averageSpeed - 14) < 1e-8);
     assert.equal(run.bestRecord.averageSpeed, run.averageSpeed);
@@ -155,6 +155,21 @@ test("manual pause freezes player, distance, obstacles, elapsed time and average
   assert.equal(run.elapsedSeconds, 0);
 });
 
+test("pausing clears a landing-buffered jump without interrupting the current arc", () => {
+  const run = new RunSystem();
+  run.update({ ...neutral, jumpPressed: true }, 0);
+  for (let i = 0; i < 14; i++) run.update(neutral, 50);
+  run.update({ ...neutral, jumpPressed: true }, 0);
+  const falling = { ...run.player.state };
+  run.setPaused(true);
+  run.update(neutral, 50);
+  assert.deepEqual(run.player.state, falling);
+  run.setPaused(false);
+  for (let i = 0; i < 4; i++) run.update(neutral, 50);
+  assert.equal(run.player.state.jumpPhase, "grounded");
+  assert.equal(run.player.state.jumpHeight, 0);
+});
+
 test("uncapped speed cannot tunnel through rows generated beyond the previous view", () => {
   for (const fps of [30, 60, 144]) {
     const run = new RunSystem(undefined, () => 0.5);
@@ -181,7 +196,7 @@ test("fast motion retains existing crossed boxes until collision has been resolv
   Object.assign(run.player.state, { selectedSpeed: 50000 });
   run.obstacles.items.splice(0, run.obstacles.items.length, box);
   assert.equal(run.update(neutral, 50), true);
-  assert.equal(run.player.state.distanceTravelled, 80);
+  assert.equal(run.player.state.distanceTravelled, 84);
 });
 
 test("restart clears distance, speed, jump and old obstacles while retaining the record", () => {

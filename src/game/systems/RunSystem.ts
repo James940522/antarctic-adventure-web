@@ -51,6 +51,7 @@ export class RunSystem {
   setPaused(paused: boolean): boolean {
     if (this.ended || this.manualPause === paused) return false;
     this.manualPause = paused;
+    this.player.clearBufferedJump();
     return true;
   }
 
@@ -74,6 +75,7 @@ export class RunSystem {
     const hit = firstCollision(previous, this.player.state, this.obstacles.items, this.player.jumpMotion);
     if (hit && hit.fraction <= arrivalFraction) {
       this.player.stopAt(previous, hit.fraction);
+      this.player.clearBufferedJump();
       this.elapsedSeconds += delta / 1000 * hit.fraction;
       this.ended = true;
       const distance = Math.floor(this.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter);

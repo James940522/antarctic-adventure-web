@@ -30,9 +30,9 @@ export const PLAYER_CONFIG = {
   speedStep: 80, // Each fresh up/down press changes speed by 8 m/s, without a ceiling.
   speedAxisThreshold: 0.5,
   collisionHalfWidth: 0.06,
-  jumpDurationSeconds: 0.8,
-  jumpMaxDistance: 240, // 24m: finish before the next row even above 30m/s.
-  jumpHeight: 100,
+  jumpDurationSeconds: 0.8, // Keep the same readable arc at every running speed.
+  jumpBufferSeconds: 0.12, // A fresh press just before landing starts the next jump.
+  jumpHeight: 150,
   maxDeltaMs: 50,
 } as const;
 
@@ -49,7 +49,7 @@ export const RUN_CONFIG = {
   unitsPerMeter: 10,
   viewDistance: 1200,
   lanes: [-0.9, -0.6, -0.3, 0, 0.3, 0.6, 0.9],
-  collisionHalfDepth: 20,
+  collisionHalfDepth: 16, // 1.6m on each side, matching the smaller obstacle artwork.
   hudRefreshMs: 100,
   recordKey: "antarctic-adventure:best-run:v2",
   legacyRecordKey: "antarctic-adventure:best-distance:v1",

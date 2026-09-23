@@ -1,6 +1,6 @@
 import { PLAYER_CONFIG } from "../config/constants.ts";
 import type { GameInputState } from "../input/input.types.ts";
-import { getJumpDurationSeconds, getJumpHeight, type JumpMotion } from "./jump.ts";
+import { getFrameJumpProgress, getJumpHeight, type JumpMotion } from "./jump.ts";
 
 export type PlayerState = {
   courseX: number;
@@ -16,6 +16,7 @@ export type PlayerState = {
 export class Player {
   private previousSpeedDirection = 0;
   private jumpProgress = 0;
+  private bufferedJump = false;
   private frameJump: JumpMotion | null = null;
   private readonly current: PlayerState = {
     courseX: 0,
@@ -52,19 +53,28 @@ export class Player {
     state.currentSpeed = state.selectedSpeed;
     state.distanceTravelled += state.currentSpeed * seconds;
 
-    // Only a fresh press on the ground starts a jump. Midair presses are not queued.
-    if (input.jumpPressed && state.jumpPhase === "grounded") {
-      state.jumpPhase = "rising";
-      state.jumpElapsedSeconds = 0;
-      this.jumpProgress = 0;
+    // Buffer only a fresh press near landing, never a held button or an early tap.
+    if (input.jumpPressed) {
+      if (state.jumpPhase === "grounded") {
+        state.jumpPhase = "rising";
+        this.jumpProgress = 0;
+        this.bufferedJump = false;
+      } else if ((1 - this.jumpProgress) * PLAYER_CONFIG.jumpDurationSeconds <= PLAYER_CONFIG.jumpBufferSeconds + 1e-9) {
+        this.bufferedJump = true;
+      }
     }
     if (state.jumpPhase === "grounded") return;
 
-    state.jumpElapsedSeconds += seconds;
-    const progress = this.jumpProgress + seconds / getJumpDurationSeconds(state.currentSpeed);
-    this.frameJump = { startProgress: this.jumpProgress, endProgress: progress };
-    this.applyJumpProgress(progress);
+    let progress = this.jumpProgress + seconds / PLAYER_CONFIG.jumpDurationSeconds;
+    // Snap roundoff at landing so collision and rendering share the exact ground contact.
+    if (Math.abs(progress - 1) < 1e-9) progress = 1;
+    const restartAtLanding = progress >= 1 && this.bufferedJump;
+    this.frameJump = { startProgress: this.jumpProgress, endProgress: progress, restartAtLanding };
+    if (restartAtLanding) this.bufferedJump = false;
+    this.applyJumpProgress(getFrameJumpProgress(this.frameJump, 1));
   }
+
+  clearBufferedJump(): void { this.bufferedJump = false; }
 
   private applyJumpProgress(progress: number): void {
     const state = this.current;
@@ -77,6 +87,7 @@ export class Player {
     }
     state.jumpPhase = progress < 0.5 - 1e-9 ? "rising" : "falling";
     state.jumpHeight = getJumpHeight(progress);
+    state.jumpElapsedSeconds = progress * PLAYER_CONFIG.jumpDurationSeconds;
   }
 
   stopAt(previous: Readonly<PlayerState>, fraction: number): void {
@@ -84,9 +95,7 @@ export class Player {
     state.courseX = previous.courseX + (state.courseX - previous.courseX) * fraction;
     state.distanceTravelled = previous.distanceTravelled + (state.distanceTravelled - previous.distanceTravelled) * fraction;
     if (this.frameJump) {
-      const progressDelta = this.frameJump.endProgress - this.frameJump.startProgress;
-      state.jumpElapsedSeconds = previous.jumpElapsedSeconds + progressDelta * getJumpDurationSeconds(state.currentSpeed) * fraction;
-      this.applyJumpProgress(this.frameJump.startProgress + progressDelta * fraction);
+      this.applyJumpProgress(getFrameJumpProgress(this.frameJump, fraction));
     } else {
       state.jumpHeight = previous.jumpHeight + (state.jumpHeight - previous.jumpHeight) * fraction;
     }
@@ -98,6 +107,7 @@ export class Player {
     this.current.jumpPhase = "grounded";
     this.current.jumpHeight = this.current.jumpElapsedSeconds = 0;
     this.jumpProgress = 0;
+    this.clearBufferedJump();
     this.frameJump = null;
     this.previousSpeedDirection = 0;
   }

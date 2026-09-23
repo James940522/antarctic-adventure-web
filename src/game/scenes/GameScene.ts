@@ -157,6 +157,7 @@ export class GameScene extends Scene {
     const window = document.defaultView;
     const reset = () => {
       controls.reset();
+      this.run?.player.clearBufferedJump();
       // Discard the first delta after refocusing, including a whole hidden interval.
       this.skipNextDelta = true;
     };
@@ -197,6 +198,7 @@ export class GameScene extends Scene {
     this.courseView?.resize();
     this.landmarks?.render();
     this.controls?.reset();
+    this.run?.player.clearBufferedJump();
   }
 
   private drawLandscape(): void {

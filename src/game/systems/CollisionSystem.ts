@@ -1,6 +1,6 @@
 import { PLAYER_CONFIG, RUN_CONFIG } from "../config/constants.ts";
 import type { PlayerState } from "../entities/Player.ts";
-import { getJumpHeight, type JumpMotion } from "../entities/jump.ts";
+import { getFrameJumpProgress, getJumpHeight, type JumpMotion } from "../entities/jump.ts";
 import { OBSTACLE_DEFINITIONS } from "../data/obstacles.ts";
 import type { Obstacle } from "./ObstacleSystem.ts";
 
@@ -27,11 +27,13 @@ export function collisionFraction(from: Readonly<PlayerState>, to: Readonly<Play
     // Solve the actual parabola inside the overlapping distance/X interval.
     // Endpoint interpolation would miss an entire short jump within one frame.
     const progressDelta = jump.endProgress - jump.startProgress;
-    const progressAtEntry = jump.startProgress + progressDelta * enter;
+    const progressAtEntry = getFrameJumpProgress(jump, enter);
     if (getJumpHeight(progressAtEntry) <= definition.collisionHeight) return enter;
     if (progressDelta <= 0) return null;
     const fallingProgress = (1 + Math.sqrt(1 - definition.collisionHeight / PLAYER_CONFIG.jumpHeight)) / 2;
-    const landingContact = (fallingProgress - jump.startProgress) / progressDelta;
+    // If entry is in a buffered second arc, solve from that arc's progress.
+    // An overlap spanning the landing still hits the first arc's ground contact.
+    const landingContact = enter + (fallingProgress - progressAtEntry) / progressDelta;
     return landingContact <= leave ? landingContact : null;
   }
   if (!clip(from.jumpHeight, to.jumpHeight, -Infinity, definition.collisionHeight)) return null;

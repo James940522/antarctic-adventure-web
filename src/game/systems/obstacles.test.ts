@@ -5,7 +5,6 @@ import { GAME_SIZE, PLAYER_CONFIG, PLAYER_VIEW, RUN_CONFIG } from "../config/con
 import { OBSTACLE_CONFIG, OBSTACLE_DEFINITIONS, OBSTACLE_IDS } from "../data/obstacles.ts";
 import { isLandmarkClearDistance } from "../data/landmarks.ts";
 import { Player, type PlayerState } from "../entities/Player.ts";
-import { getJumpDurationSeconds } from "../entities/jump.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import { collisionFraction } from "./CollisionSystem.ts";
 import { ObstacleSystem, type Obstacle } from "./ObstacleSystem.ts";
@@ -23,6 +22,27 @@ function course(seed: number, endMeters = 4000): Obstacle[] {
   const system = new ObstacleSystem(seeded(seed));
   system.update(0, endMeters * RUN_CONFIG.unitsPerMeter);
   return system.items;
+}
+
+function isolatedRun(speed: number): RunSystem {
+  const run = new RunSystem();
+  Object.assign(run.player.state, { selectedSpeed: speed * RUN_CONFIG.unitsPerMeter });
+  // These collision fixtures control every row, including beyond the initial view.
+  run.obstacles.update = () => {};
+  return run;
+}
+
+function advance(run: RunSystem, milliseconds: number, fps = 60): void {
+  let remaining = milliseconds;
+  while (remaining > 1e-8 && run.status === "running") {
+    const delta = Math.min(1000 / fps, remaining);
+    run.update(neutral, delta);
+    remaining -= delta;
+  }
+}
+
+function near(actual: number, expected: number): void {
+  assert.ok(Math.abs(actual - expected) < 1e-8, `${actual} != ${expected}`);
 }
 
 test("all six PNGs have valid artwork frames, preserved aspect ratios and jumpable lower hitboxes", () => {
@@ -134,69 +154,141 @@ test("a reachable lateral escape remains at 30m/s through many mixed courses", (
   }
 });
 
-test("all six obstacles collide on the ground but clear with one jump through 1022m/s and 20/30/60/144 FPS", () => {
+test("all six obstacles collide on the ground but clear with a 0.8s jump at every tested speed and frame rate", () => {
   for (const type of OBSTACLE_IDS) {
     const obstacle: Obstacle = { id: -1, type, startLane: 3, courseX: 0, distance: 56 };
     assert.notEqual(collisionFraction(state(), state({ distanceTravelled: 100 }), obstacle), null, type);
-    for (const speed of [14, 22, 30, 62, 126, 254, 510, 1022]) for (const fps of [20, 30, 60, 144]) {
-      const run = new RunSystem();
-      Object.assign(run.player.state, { selectedSpeed: speed * RUN_CONFIG.unitsPerMeter });
-      const duration = getJumpDurationSeconds(speed * RUN_CONFIG.unitsPerMeter);
-      run.obstacles.items.push({ ...obstacle, distance: speed * RUN_CONFIG.unitsPerMeter * duration / 2 });
+    for (const speed of [14, 22, 30, 94, 134, 174, 254, 1022]) for (const fps of [20, 30, 60, 144]) {
+      const run = isolatedRun(speed);
+      run.obstacles.items.push({ ...obstacle, distance: speed * RUN_CONFIG.unitsPerMeter * 0.4 });
       run.update({ ...neutral, jumpPressed: true }, 0);
-      for (let i = 0; i < Math.ceil(duration * fps); i++) run.update(neutral, 1000 / fps);
+      advance(run, 400, fps);
+      near(run.player.state.jumpHeight, 150);
+      advance(run, 399, fps);
       assert.equal(run.status, 'running', `${type} at ${speed}m/s, ${fps} FPS`);
+      assert.equal(run.player.state.jumpPhase, 'falling');
+      assert.ok(run.player.state.jumpHeight > 0);
+      advance(run, 1, fps);
       assert.equal(run.player.state.jumpPhase, 'grounded');
+      near(run.elapsedSeconds, 0.8);
+      near(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, speed * 0.8);
     }
   }
 });
 
-test("a fresh jump can clear each of three close rows without carrying the previous jump into the next", () => {
-  for (const type of OBSTACLE_IDS) for (const speed of [62, 126, 254, 510, 1022]) for (const fps of [20, 30, 60, 144]) {
-    const run = new RunSystem();
-    Object.assign(run.player.state, { selectedSpeed: speed * RUN_CONFIG.unitsPerMeter });
-    // Use the shortest legal spacing, even for the normally more widely spaced types.
-    run.obstacles.items.push(...[12, 47, 82].map((meters, id) => ({
-      id: -id - 1, type, startLane: 3, courseX: 0, distance: meters * RUN_CONFIG.unitsPerMeter,
-    })));
-    for (let row = 0; row < 3; row++) {
-      assert.equal(run.player.state.jumpPhase, "grounded", `${type}, ${speed}m/s, ${fps} FPS, row ${row}`);
+test("jump timing has a useful time window instead of a shrinking distance window at high speeds", () => {
+  for (const type of OBSTACLE_IDS) for (const speed of [14, 22, 30, 94, 134, 174, 254, 1022]) {
+    // At low speed the obstacle's 3.2m depth takes longer to pass underneath.
+    const leadSeconds = speed < 94 ? [0.25, 0.4, 0.55] : [0.2, 0.4, 0.6];
+    for (const lead of leadSeconds) for (const fps of [20, 30, 60, 144]) {
+      const run = isolatedRun(speed);
+      run.obstacles.items.push({
+        id: -1, type, startLane: 3, courseX: 0, distance: lead * speed * RUN_CONFIG.unitsPerMeter,
+      });
       run.update({ ...neutral, jumpPressed: true }, 0);
-      // Input at each row's approach; ordinary frames between those input instants.
-      let remainingMs = 35 / speed * 1000;
-      while (remainingMs > 1e-8) {
-        const delta = Math.min(1000 / fps, remainingMs);
-        run.update(neutral, delta);
-        remainingMs -= delta;
-      }
-      assert.equal(run.status, "running", `${type}, ${speed}m/s, ${fps} FPS, row ${row}`);
+      advance(run, 850, fps);
+      assert.equal(run.status, "running", `${type}, lead ${lead}s, ${speed}m/s, ${fps} FPS`);
+      assert.equal(run.player.state.jumpPhase, "grounded");
     }
+  }
+});
+
+test("one high-speed jump can clear multiple rows spaced 35m apart", () => {
+  for (const type of OBSTACLE_IDS) for (const speed of [94, 134, 174, 254, 1022]) for (const fps of [20, 30, 60, 144]) {
+    const run = isolatedRun(speed);
+    // Stress even wide types with the shortest single-cell row spacing.
+    for (let meters = speed * 0.2; meters <= speed * 0.6; meters += 35) {
+      run.obstacles.items.push({
+        id: -run.obstacles.items.length - 1, type, startLane: 3, courseX: 0,
+        distance: meters * RUN_CONFIG.unitsPerMeter,
+      });
+    }
+    assert.ok(run.obstacles.items.length >= 2);
+    run.update({ ...neutral, jumpPressed: true }, 0);
+    advance(run, 850, fps);
+    assert.equal(run.status, "running", `${type}, ${speed}m/s, ${fps} FPS`);
     assert.equal(run.player.state.jumpPhase, "grounded");
   }
 });
 
-test("subframe jumps still collide when too late, when landing inside a hole, or at the next unjumped row", () => {
-  for (const scenario of [
-    { type: "supply-crate" as const, distances: [2], contact: 0 },
-    { type: "ice-hole" as const, distances: [24], contact: 24 },
-    { type: "supply-crate" as const, distances: [24], contact: 22 },
-    { type: "supply-crate" as const, distances: [12, 35], contact: 33 },
-  ]) {
-    const run = new RunSystem();
-    Object.assign(run.player.state, { selectedSpeed: 10000 });
-    run.obstacles.items.push(...scenario.distances.map((distance, id) => ({
-      id: -id - 1, type: scenario.type, startLane: 3, courseX: 0, distance: distance * RUN_CONFIG.unitsPerMeter,
-    })));
-    assert.equal(run.update({ ...neutral, jumpPressed: true }, 50), true);
-    assert.equal(run.status, "gameover");
-    assert.ok(Math.abs(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter - scenario.contact) < 1e-8);
-    assert.ok(Math.abs(run.elapsedSeconds - scenario.contact / 1000) < 1e-8);
-    if (scenario.contact === 22) {
-      assert.equal(run.player.state.jumpPhase, "falling");
-      assert.ok(run.player.state.jumpHeight > 0);
-      assert.ok(Math.abs(run.player.state.jumpElapsedSeconds - 0.022) < 1e-8);
+test("jumping too late and landing inside a ground hazard still collide at the exact contact time", () => {
+  for (const speed of [94, 134, 174, 254, 1022]) for (const fps of [20, 30, 60, 144]) {
+    for (const type of ["supply-crate", "ice-hole"] as const) {
+      const run = isolatedRun(speed);
+      const contactSeconds = type === "supply-crate" ? 0 : 0.8;
+      run.obstacles.items.push({
+        id: -1, type, startLane: 3, courseX: 0,
+        distance: type === "supply-crate" ? RUN_CONFIG.collisionHalfDepth : speed * 0.8 * RUN_CONFIG.unitsPerMeter,
+      });
+      run.update({ ...neutral, jumpPressed: true }, 0);
+      advance(run, 850, fps);
+      assert.equal(run.status, "gameover", `${type}, ${speed}m/s, ${fps} FPS`);
+      near(run.elapsedSeconds, contactSeconds);
+      near(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, speed * contactSeconds);
     }
   }
+});
+
+test("a buffered jump carries the remainder of an irregular landing frame into the next arc", () => {
+  const run = isolatedRun(174);
+  run.update({ ...neutral, jumpPressed: true }, 0);
+  advance(run, 775);
+  run.update({ ...neutral, jumpPressed: true }, 50);
+  assert.equal(run.status, "running");
+  assert.equal(run.player.state.jumpPhase, "rising");
+  near(run.player.state.jumpElapsedSeconds, 0.025);
+  assert.ok(run.player.state.jumpHeight > 0);
+  near(run.elapsedSeconds, 0.825);
+  near(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, 174 * 0.825);
+  advance(run, 375);
+  near(run.player.state.jumpHeight, 150);
+  advance(run, 400);
+  assert.equal(run.player.state.jumpPhase, "grounded");
+  near(run.elapsedSeconds, 1.6);
+});
+
+test("buffering never skips a falling or landing collision in favor of the second jump", () => {
+  for (const type of ["supply-crate", "ice-hole"] as const) {
+    const run = isolatedRun(174);
+    const contactSeconds = type === "supply-crate" ? 0.79 : 0.8;
+    run.obstacles.items.push(
+      // Deliberately place a later obstacle first to check earliest-contact ordering.
+      { id: -1, type: "supply-crate", startLane: 3, courseX: 0, distance: 174 * 0.812 * RUN_CONFIG.unitsPerMeter + RUN_CONFIG.collisionHalfDepth },
+      { id: -2, type, startLane: 3, courseX: 0, distance: 174 * contactSeconds * RUN_CONFIG.unitsPerMeter + (type === "supply-crate" ? RUN_CONFIG.collisionHalfDepth : 0) },
+    );
+    run.update({ ...neutral, jumpPressed: true }, 0);
+    advance(run, 775);
+    assert.equal(run.status, "running");
+    assert.equal(run.update({ ...neutral, jumpPressed: true }, 50), true);
+    assert.equal(run.status, "gameover");
+    near(run.elapsedSeconds, contactSeconds);
+    near(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, 174 * contactSeconds);
+    near(run.averageSpeed, 174);
+    if (type === "supply-crate") {
+      assert.equal(run.player.state.jumpPhase, "falling");
+      near(run.player.state.jumpElapsedSeconds, 0.79);
+      assert.ok(run.player.state.jumpHeight > 0);
+    } else near(run.player.state.jumpHeight, 0);
+  }
+});
+
+test("the second rising arc still hits a solid obstacle before reaching its clearance height", () => {
+  const run = isolatedRun(174);
+  const contactSeconds = 0.812;
+  run.obstacles.items.push({
+    id: -1, type: "supply-crate", startLane: 3, courseX: 0,
+    distance: 174 * contactSeconds * RUN_CONFIG.unitsPerMeter + RUN_CONFIG.collisionHalfDepth,
+  });
+  run.update({ ...neutral, jumpPressed: true }, 0);
+  advance(run, 775);
+  assert.equal(run.update({ ...neutral, jumpPressed: true }, 50), true);
+  assert.equal(run.status, "gameover");
+  assert.equal(run.player.state.jumpPhase, "rising");
+  near(run.elapsedSeconds, contactSeconds);
+  near(run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, 174 * contactSeconds);
+  near(run.player.state.jumpElapsedSeconds, 0.012);
+  near(run.averageSpeed, 174);
+  assert.ok(run.player.state.jumpHeight > 0 && run.player.state.jumpHeight < OBSTACLE_DEFINITIONS["supply-crate"].collisionHeight);
 });
 
 test("ground hazards only catch ground contact, while solid heights differ and sprite edges are forgiving", () => {

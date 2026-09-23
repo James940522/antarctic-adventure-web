@@ -26,6 +26,14 @@ function close(actual: number, expected: number) {
   assert.ok(Math.abs(actual - expected) < 1e-7, `${actual} != ${expected}`);
 }
 
+function accelerateTo(player: Player, speed: number) {
+  for (let current = 14; current < speed; current += 8) {
+    player.update({ ...neutral, verticalAxis: -1 }, 0);
+    player.update(neutral, 0);
+  }
+  close(player.state.currentSpeed, speed * 10);
+}
+
 test("neutral input advances automatically at the initial speed", () => {
   const player = new Player();
   advance(player, 1);
@@ -93,13 +101,13 @@ test("a short jump tap reaches the apex and lands while horizontal movement cont
   assert.equal(player.state.jumpHeight, 0);
 });
 
-test("midair presses are ignored instead of restarting or buffering a jump", () => {
+test("presses before the landing buffer window are ignored without restarting the jump", () => {
   const player = new Player();
   player.update({ ...neutral, jumpPressed: true }, 0);
-  advance(player, 0.5);
+  advance(player, 0.679);
   player.update({ ...neutral, jumpPressed: true }, 0);
-  close(player.state.jumpElapsedSeconds, 0.5);
-  advance(player, 0.3);
+  close(player.state.jumpElapsedSeconds, 0.679);
+  advance(player, 0.121);
   assert.equal(player.state.jumpPhase, "grounded");
   advance(player, 0.1);
   assert.equal(player.state.jumpPhase, "grounded");
@@ -107,46 +115,104 @@ test("midair presses are ignored instead of restarting or buffering a jump", () 
   assert.equal(player.state.jumpPhase, "rising");
 });
 
-test("high-speed jumps keep their full height but land within 24m at different frame rates", () => {
-  for (const speed of [14, 22, 30, 62, 126, 254, 1022]) for (const fps of [20, 30, 60, 144]) {
+test("jumps keep 0.8 seconds of airtime and 150 units of height at every speed and frame rate", () => {
+  for (const speed of [14, 22, 30, 38, 62, 94, 134, 174, 254, 1022]) for (const fps of [20, 30, 60, 144]) {
     const player = new Player();
-    for (let current = 14; current < speed; current += 8) {
-      player.update({ ...neutral, verticalAxis: -1 }, 0);
-      player.update(neutral, 0);
-    }
-    const duration = speed <= 30 ? 0.8 : 24 / speed;
+    accelerateTo(player, speed);
     player.update({ ...neutral, jumpPressed: true }, 0);
-    advance(player, duration / 2, neutral, fps);
-    close(player.state.jumpHeight, 100);
+    advance(player, 0.4, neutral, fps);
+    close(player.state.jumpHeight, 150);
     assert.equal(player.state.jumpPhase, "falling");
-    advance(player, duration / 2, neutral, fps);
+    close(player.state.jumpElapsedSeconds, 0.4);
+    advance(player, 0.399, neutral, fps);
+    assert.equal(player.state.jumpPhase, "falling", `${speed}m/s at ${fps} FPS must stay airborne until 0.8s`);
+    assert.ok(player.state.jumpHeight > 0);
+    advance(player, 0.001, neutral, fps);
     assert.equal(player.state.jumpPhase, "grounded");
-    close(player.state.distanceTravelled, Math.min(speed * 0.8, 24) * 10);
+    close(player.state.distanceTravelled, speed * 0.8 * 10);
     advance(player, 0.1, { ...neutral, jump: true }, fps);
-    assert.equal(player.state.jumpPhase, "grounded", "holding must not auto-jump after an early landing");
+    assert.equal(player.state.jumpPhase, "grounded", "holding must not auto-jump after landing");
     player.update({ ...neutral, jumpPressed: true }, 0);
     assert.equal(player.state.jumpPhase, "rising");
   }
 });
 
-test("accelerating or braking midair changes the remaining duration without resetting the arc", () => {
+test("accelerating or braking midair changes distance without changing the jump arc or airtime", () => {
   const player = new Player();
-  for (let i = 0; i < 6; i++) {
-    player.update({ ...neutral, verticalAxis: -1 }, 0);
-    player.update(neutral, 0);
-  }
+  accelerateTo(player, 174);
   player.update({ ...neutral, jumpPressed: true }, 0);
-  advance(player, 24 / 62 / 4);
-  close(player.state.jumpHeight, 75);
+  advance(player, 0.2);
+  close(player.state.jumpHeight, 112.5);
   player.update({ ...neutral, verticalAxis: 1 }, 0);
-  close(player.state.jumpHeight, 75);
-  advance(player, 24 / 54 / 4);
-  close(player.state.jumpHeight, 100);
+  close(player.state.currentSpeed, 1660);
+  close(player.state.jumpHeight, 112.5);
+  close(player.state.jumpElapsedSeconds, 0.2);
+  advance(player, 0.2);
+  close(player.state.jumpHeight, 150);
   player.update({ ...neutral, verticalAxis: -1 }, 0);
-  close(player.state.jumpHeight, 100);
-  advance(player, 24 / 62 / 2);
+  close(player.state.currentSpeed, 1740);
+  close(player.state.jumpHeight, 150);
+  close(player.state.jumpElapsedSeconds, 0.4);
+  advance(player, 0.4);
   assert.equal(player.state.jumpPhase, "grounded");
-  close(player.state.distanceTravelled, 240);
+  close(player.state.distanceTravelled, (174 * 0.6 + 166 * 0.2) * 10);
+});
+
+test("a fresh press in the final 0.12 seconds queues one jump without restarting the falling arc", () => {
+  for (const speed of [94, 134, 174, 1022]) for (const fps of [20, 30, 60, 144]) {
+    const player = new Player();
+    accelerateTo(player, speed);
+    player.update({ ...neutral, jumpPressed: true }, 0);
+    advance(player, 0.68, neutral, fps);
+    const beforePress = { ...player.state };
+    player.update({ ...neutral, jumpPressed: true, jumpReleased: true }, 0);
+    assert.deepEqual(player.state, beforePress, "buffering must leave the current arc unchanged");
+    advance(player, 0.1, neutral, fps);
+    close(player.state.jumpElapsedSeconds, 0.78);
+    assert.equal(player.state.jumpPhase, "falling");
+    player.update(neutral, 50);
+    assert.equal(player.state.jumpPhase, "rising");
+    close(player.state.jumpElapsedSeconds, 0.03);
+    close(player.state.jumpHeight, 4 * 150 * (0.03 / 0.8) * (1 - 0.03 / 0.8));
+    close(player.state.distanceTravelled, speed * 0.83 * 10);
+    advance(player, 1, { ...neutral, jump: true }, fps);
+    assert.equal(player.state.jumpPhase, "grounded", "a queued tap must be consumed exactly once");
+  }
+});
+
+test("holding through the landing buffer window never queues an automatic jump", () => {
+  const player = new Player();
+  accelerateTo(player, 174);
+  player.update({ ...neutral, jump: true, jumpPressed: true }, 0);
+  advance(player, 1.6, { ...neutral, jump: true });
+  assert.equal(player.state.jumpPhase, "grounded");
+  assert.equal(player.state.jumpHeight, 0);
+});
+
+test("clearing a queued jump preserves the current arc and prevents a later launch", () => {
+  const player = new Player();
+  player.update({ ...neutral, jumpPressed: true }, 0);
+  advance(player, 0.72);
+  player.update({ ...neutral, jumpPressed: true }, 0);
+  const beforeClear = { ...player.state };
+  player.clearBufferedJump();
+  assert.deepEqual(player.state, beforeClear);
+  advance(player, 0.08);
+  assert.equal(player.state.jumpPhase, "grounded");
+  advance(player, 0.2);
+  assert.equal(player.state.jumpPhase, "grounded");
+});
+
+test("arriving at a landmark clears the queued jump before departure", () => {
+  const player = new Player();
+  player.update({ ...neutral, jumpPressed: true }, 0);
+  advance(player, 0.72);
+  player.update({ ...neutral, jumpPressed: true }, 0);
+  player.arriveAt(1000);
+  player.depart();
+  advance(player, 1, { ...neutral, jump: true });
+  assert.equal(player.state.jumpPhase, "grounded");
+  assert.equal(player.state.jumpHeight, 0);
 });
 
 test("30, 60 and 144 FPS give the same movement, speed, distance and jump timing", () => {

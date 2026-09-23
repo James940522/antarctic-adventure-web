@@ -1,10 +1,15 @@
 import { PLAYER_CONFIG } from "../config/constants.ts";
 
-/** Unclamped progress across one frame, including any time after landing. */
-export type JumpMotion = { startProgress: number; endProgress: number };
+/** Unclamped progress; a buffered jump may begin at progress 1 within this frame. */
+export type JumpMotion = {
+  startProgress: number;
+  endProgress: number;
+  restartAtLanding: boolean;
+};
 
-export function getJumpDurationSeconds(speed: number): number {
-  return Math.min(PLAYER_CONFIG.jumpDurationSeconds, PLAYER_CONFIG.jumpMaxDistance / speed);
+export function getFrameJumpProgress(motion: Readonly<JumpMotion>, fraction: number): number {
+  const progress = motion.startProgress + (motion.endProgress - motion.startProgress) * fraction;
+  return motion.restartAtLanding && progress >= 1 ? progress - 1 : progress;
 }
 
 export function getJumpHeight(progress: number): number {
