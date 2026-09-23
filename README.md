@@ -13,11 +13,21 @@ pnpm dev
 
 ## 링크 공유 미리보기
 
-공유 제목·설명·Open Graph·X(트위터) 큰 이미지 카드는 `src/app/layout.tsx`에서 관리한다. 공유 이미지는 사용자가 제공한 원본 `public/og.png`이며, `/og.png`로 제공한다.
+검색·공유 제목, 설명, 대표 주소는 `src/app/site-metadata.ts`에서 관리하고, `src/app/layout.tsx`에서 메타 태그와 Open Graph·X(트위터) 큰 이미지 카드에 적용한다. 공유 이미지는 사용자가 제공한 원본 `public/og.png`이며, `/og.png`로 제공한다.
 
 배포 환경의 `SITE_URL`에 실제 공개 주소를 `https://`까지 포함해 설정하고 빌드한다. 이 주소를 대표 URL과 공유 이미지의 절대 주소에 사용한다. 값이 없으면 Vercel의 `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL` 순으로 사용하고, 로컬 개발에서는 `http://localhost:${PORT 또는 3000}`을 사용한다. 다른 호스팅 서비스에 배포할 때는 `SITE_URL`을 반드시 설정한다.
 
 배포 후 페이지 소스의 `og:image`와 `twitter:image`가 공개 주소의 `/og.png`를 가리키고, 해당 이미지가 로그인 없이 열리는지 확인한다.
+
+## 검색엔진 메타데이터
+
+- 검색 제목·설명, canonical, robots/googlebot 태그는 서버에서 초기 HTML에 포함한다. 개발 환경과 Vercel Preview에서는 `noindex`를 지정하고, 프로덕션에서는 색인을 허용한다.
+- `/robots.txt`는 페이지와 이미지 수집을 허용하고 `/api/` 수집은 제외한다. 색인이 허용된 환경에서는 `/sitemap.xml` 위치도 안내한다.
+- `/sitemap.xml`에는 실제 공개 페이지인 홈(`/`)만 포함한다. 별도 URL이 없는 메뉴·랭킹 모달은 등록하지 않는다. 개발·미리보기 환경의 사이트맵은 비워 둔다.
+- 홈에는 이름·설명·이미지·언어·브라우저 플랫폼·싱글플레이 정보를 담은 `VideoGame` JSON-LD를 포함한다. 실제로 수집하지 않은 평점이나 리뷰를 생성하지 않는다.
+- Google Search Console 소유권 확인에는 `GOOGLE_SITE_VERIFICATION`, 네이버 서치어드바이저에는 `NAVER_SITE_VERIFICATION` 환경변수를 사용할 수 있다. 각 서비스가 발급한 메타 태그의 `content` 값만 설정하고 다시 빌드한다. 설정하지 않으면 확인 태그를 출력하지 않는다.
+
+배포 후 실제 도메인의 대표 URL·`robots.txt`·`sitemap.xml`을 확인하고, 소유권 확인을 마친 검색엔진 도구에서 사이트맵을 제출한다. 메타 태그를 추가하는 것만으로 검색 등록이나 특정 순위를 보장하지 않는다. `keywords` 메타 태그는 Google 검색의 색인·순위에 사용되지 않으므로 추가하지 않는다. 기준: [Google 메타 태그 문서](https://developers.google.com/search/docs/crawling-indexing/special-tags), [Schema.org VideoGame](https://schema.org/VideoGame).
 
 ## 플레이
 
