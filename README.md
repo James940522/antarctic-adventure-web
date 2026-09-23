@@ -11,6 +11,14 @@ pnpm dev
 
 기본 주소는 [localhost:3000](http://localhost:3000)이다. 3100 포트로 실행하려면 `pnpm dev --port 3100`을 사용한다.
 
+## 링크 공유 미리보기
+
+공유 제목·설명·Open Graph·X(트위터) 큰 이미지 카드는 `src/app/layout.tsx`에서 관리한다. 공유 이미지는 사용자가 제공한 원본 `public/og.png`이며, `/og.png`로 제공한다.
+
+배포 환경의 `SITE_URL`에 실제 공개 주소를 `https://`까지 포함해 설정하고 빌드한다. 이 주소를 대표 URL과 공유 이미지의 절대 주소에 사용한다. 값이 없으면 Vercel의 `VERCEL_PROJECT_PRODUCTION_URL`, `VERCEL_URL` 순으로 사용하고, 로컬 개발에서는 `http://localhost:${PORT 또는 3000}`을 사용한다. 다른 호스팅 서비스에 배포할 때는 `SITE_URL`을 반드시 설정한다.
+
+배포 후 페이지 소스의 `og:image`와 `twitter:image`가 공개 주소의 `/og.png`를 가리키고, 해당 이미지가 로그인 없이 열리는지 확인한다.
+
 ## 플레이
 
 페이지가 활성 상태이면 1단으로 자동 전진한다. 게임 화면을 클릭하거나 Tab으로 선택해 조작한다.
