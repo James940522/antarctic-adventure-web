@@ -2,12 +2,12 @@ import { Game } from "phaser";
 
 import { GAME_EVENTS } from "@/game/config/constants";
 import { createGameConfig } from "@/game/config/game-config";
-import type { RunSnapshot } from "@/game/systems/RunSystem";
+import type { GameSnapshot } from "@/game/types/game.types";
 
 type GameCallbacks = {
   onReady: () => void;
   onError: (error: unknown) => void;
-  onSnapshot: (snapshot: RunSnapshot) => void;
+  onSnapshot: (snapshot: GameSnapshot) => void;
 };
 
 // This entry point must only be imported after the React host mounts.

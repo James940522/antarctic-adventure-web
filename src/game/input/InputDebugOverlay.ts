@@ -1,9 +1,10 @@
 import type { GameObjects, Scene } from "phaser";
 
-import { INPUT_CONFIG } from "@/game/config/constants";
+import { INPUT_CONFIG, RUN_CONFIG } from "@/game/config/constants";
 import type { PlayerState } from "@/game/entities/Player";
 import type { GamepadInput } from "@/game/input/GamepadInput";
 import type { GameInputState } from "@/game/input/input.types";
+import type { LandmarkSystem } from "@/game/systems/LandmarkSystem";
 
 export class InputDebugOverlay {
   private readonly text: GameObjects.Text;
@@ -27,7 +28,7 @@ export class InputDebugOverlay {
     }).setOrigin(1, 0).setDepth(1000);
   }
 
-  update(time: number, input: Readonly<GameInputState>, active: boolean, pad: GamepadInput["status"], player: Readonly<PlayerState>): void {
+  update(time: number, input: Readonly<GameInputState>, active: boolean, pad: GamepadInput["status"], player: Readonly<PlayerState>, landmarks?: LandmarkSystem): void {
     if (input.jumpPressed) this.presses++;
     if (input.jumpReleased) this.releases++;
     if (time < this.nextRefresh) return;
@@ -51,6 +52,11 @@ export class InputDebugOverlay {
       `속도 ${player.currentSpeed.toFixed(0)} · 거리 ${player.distanceTravelled.toFixed(0)}`,
       `courseX ${player.courseX.toFixed(2)}`,
       `점프 ${jumpLabel} · 높이 ${player.jumpHeight.toFixed(0)}`,
+      ...(process.env.NODE_ENV === "development" && landmarks ? [
+        `거리 ${(player.distanceTravelled / RUN_CONFIG.unitsPerMeter).toFixed(1)} m`,
+        `NEXT ${landmarks.next?.id ?? "--"} · ${landmarks.snapshot().next?.distanceRemaining ?? "--"} m`,
+        `활성 ${landmarks.activeLandmark?.id ?? "--"} · 진행 ${landmarks.progress?.toFixed(2) ?? "--"}`,
+      ] : []),
     ]);
   }
 }

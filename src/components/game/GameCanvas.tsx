@@ -7,7 +7,7 @@ import { GAME_EVENTS } from "@/game/config/constants";
 import { GameHud } from "@/components/game/GameHud";
 import { TouchControls } from "@/components/game/TouchControls";
 import styles from "./GameViewport.module.css";
-import type { RunSnapshot } from "@/game/systems/RunSystem";
+import type { GameSnapshot } from "@/game/types/game.types";
 
 type LoadStatus = "loading" | "ready" | "error";
 
@@ -16,7 +16,7 @@ export function GameCanvas() {
   const inputTargetRef = useRef<HTMLElement>(null);
   const teardownRef = useRef<Promise<void>>(Promise.resolve());
   const gameRef = useRef<Game | undefined>(undefined);
-  const [run, setRun] = useState<RunSnapshot | null>(null);
+  const [run, setRun] = useState<GameSnapshot | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [attempt, setAttempt] = useState(0);
 

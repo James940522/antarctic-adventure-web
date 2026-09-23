@@ -11,6 +11,9 @@ import { RunSystem } from "@/game/systems/RunSystem";
 import { RecordStore } from "@/game/systems/RecordStore";
 import { PerspectiveSystem } from "@/game/systems/PerspectiveSystem";
 import { CourseView } from "@/game/systems/CourseView";
+import { LandmarkSystem } from "@/game/systems/LandmarkSystem";
+import { LandmarkView } from "@/game/systems/LandmarkView";
+import type { GameSnapshot } from "@/game/types/game.types";
 
 export class GameScene extends Scene {
   static readonly KEY = "GameScene";
@@ -24,6 +27,7 @@ export class GameScene extends Scene {
   private records?: RecordStore;
   private courseView?: CourseView;
   private playerView?: PlayerView;
+  private landmarks?: LandmarkSystem;
   private skipNextDelta = true;
   private nextHudRefresh = 0;
   private restartAt = 0;
@@ -40,6 +44,10 @@ export class GameScene extends Scene {
       this.records = new RecordStore();
       this.run = new RunSystem(this.records.value);
       const projection = new PerspectiveSystem();
+      this.landmarks = new LandmarkSystem(new LandmarkView(this, projection), (landmark) => {
+        this.game.events.emit(GAME_EVENTS.landmarkPassed, landmark);
+        this.nextHudRefresh = 0;
+      });
       this.courseView = new CourseView(this, projection);
       this.playerView = new PlayerView(this, projection);
       this.playerView.render(this.run.player.state);
@@ -63,6 +71,8 @@ export class GameScene extends Scene {
     const input = this.controls.update(inputActive);
     if (active && this.run.status === "running") {
       const ended = this.run.update(input, this.skipNextDelta ? 0 : delta);
+      // Observe the collision-clamped distance, including a crossing on the final frame.
+      this.landmarks?.update(this.run.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter, this.run.elapsedSeconds);
       this.skipNextDelta = false;
       if (ended) {
         this.controls.reset();
@@ -77,7 +87,7 @@ export class GameScene extends Scene {
     }
     this.courseView?.render(this.run.player.state.distanceTravelled, this.run.elapsedSeconds, this.run.obstacles.boxes);
     this.playerView?.render(this.run.player.state);
-    this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state);
+    this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state, this.landmarks);
     if (time >= this.nextHudRefresh) {
       this.nextHudRefresh = time + RUN_CONFIG.hudRefreshMs;
       this.publishSnapshot();
@@ -85,11 +95,16 @@ export class GameScene extends Scene {
   }
 
   private publishSnapshot(): void {
+    if (!this.run || !this.landmarks) return;
     const document = this.inputTarget.ownerDocument;
-    this.game.events.emit(GAME_EVENTS.snapshot, this.run?.snapshot(
-      document.visibilityState === "hidden" || !document.hasFocus(),
-      (this.keyboard?.isActive ?? false) || (this.touch?.isActive ?? false),
-    ));
+    const snapshot: GameSnapshot = {
+      ...this.run.snapshot(
+        document.visibilityState === "hidden" || !document.hasFocus(),
+        (this.keyboard?.isActive ?? false) || (this.touch?.isActive ?? false),
+      ),
+      landmarks: this.landmarks.snapshot(),
+    };
+    this.game.events.emit(GAME_EVENTS.snapshot, snapshot);
   }
 
   private restart(): void {
@@ -97,6 +112,7 @@ export class GameScene extends Scene {
     this.run.restart();
     this.controls?.reset();
     this.courseView?.reset();
+    this.landmarks?.reset();
     this.skipNextDelta = true;
     this.nextHudRefresh = 0;
     this.publishSnapshot();
@@ -135,8 +151,10 @@ export class GameScene extends Scene {
       controls.destroy();
       this.game.events.off(GAME_EVENTS.restart, this.restart, this);
       this.courseView?.reset();
+      this.landmarks?.reset();
       this.controls = this.keyboard = this.gamepad = this.inputDebug = this.touch = undefined;
       this.run = this.playerView = this.courseView = this.records = undefined;
+      this.landmarks = undefined;
       this.skipNextDelta = true;
       this.events.off(Scenes.Events.SHUTDOWN, cleanup);
       this.events.off(Scenes.Events.DESTROY, cleanup);

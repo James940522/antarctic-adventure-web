@@ -13,6 +13,7 @@ export const GAME_EVENTS = {
   error: "antarctic:error",
   snapshot: "antarctic:snapshot",
   restart: "antarctic:restart",
+  landmarkPassed: "antarctic:landmark-passed",
 } as const;
 
 export const INPUT_CONFIG = {
@@ -51,4 +52,16 @@ export const RUN_CONFIG = {
   colors: [0xff3ab4, 0xdfff00, 0x00efd5, 0xb18aff, 0xff982f],
   hudRefreshMs: 100,
   recordKey: "antarctic-adventure:best-distance:v1",
+} as const;
+
+export const LANDMARK_CONFIG = {
+  frameName: "artwork",
+  // Anchor the inner edge outside the course so scenery cannot hide a safe lane.
+  shoulderPosition: 1.1,
+  exitDistance: 12, // Meters after passing; scales with actual forward movement.
+  sizes: {
+    small: { width: 180, maxHeight: 210, messageSeconds: 0 },
+    medium: { width: 340, maxHeight: 280, messageSeconds: 1 },
+    major: { width: 440, maxHeight: 330, messageSeconds: 1.35 },
+  },
 } as const;
