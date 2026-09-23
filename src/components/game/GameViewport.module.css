@@ -7,8 +7,6 @@
   --view-height: 100dvh;
   --available-width: calc(var(--view-width) - var(--inset-left) - var(--inset-right));
   --available-height: calc(var(--view-height) - var(--inset-top) - var(--inset-bottom));
-  --controls-height: 0px;
-  --controls-gap: 0px;
   position: absolute;
   inset: 0;
   display: flex;
@@ -18,17 +16,17 @@
 }
 
 .console {
+  position: relative;
   width: min(960px, var(--available-width));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--controls-gap);
   outline: none;
 }
 
 .surface {
   position: relative;
-  width: min(100%, calc((var(--available-height) - var(--controls-height) - var(--controls-gap)) * 16 / 9));
+  width: min(100%, calc(var(--available-height) * 16 / 9));
   aspect-ratio: 16 / 9;
   flex: none;
   overflow: hidden;
@@ -41,7 +39,7 @@
 .console:focus-visible .surface { outline: 2px solid #7dd3fc; outline-offset: 3px; }
 .mount { position: absolute; inset: 0; }
 .mount canvas {
-  /* CSS owns display sizing: rotated DOM bounds must not change Phaser's FIT calculations. */
+  /* The renderer matches this aspect ratio using the unrotated content box. */
   display: block;
   width: 100% !important;
   height: 100% !important;
@@ -49,43 +47,61 @@
 }
 
 .controls { display: none; }
+.hud { z-index: 3; }
 .control {
   height: 44px;
   min-width: 44px;
-  border: 1px solid #94a3b84d;
+  border: 1px solid rgb(255 255 255 / 65%);
   border-radius: 16px;
-  background: rgb(71 85 105 / 28%);
-  color: #e2e8f0;
+  background: rgb(27 60 80 / 14%);
+  box-shadow: inset 0 0 0 1px rgb(23 59 81 / 20%), 0 2px 6px rgb(23 59 81 / 12%);
+  color: #f8fafc;
+  text-shadow: 0 1px 2px #173b51, 0 0 3px #173b51;
   font-size: 24px;
   font-weight: 700;
   touch-action: none;
   user-select: none;
   -webkit-touch-callout: none;
   cursor: pointer;
+  pointer-events: auto;
 }
 .control:focus-visible { outline: 2px solid #7dd3fc; outline-offset: 3px; }
-.control[data-pressed="true"] { background: rgb(56 189 248 / 40%); color: #e0f2fe; border-color: #bae6fd; }
-.control:disabled { opacity: 0.35; cursor: default; }
+.control[data-pressed="true"] { background: rgb(56 189 248 / 38%); border-color: #e0f2fe; }
+.control:disabled { opacity: 0.25; cursor: default; pointer-events: none; }
+.control > span { pointer-events: none; }
 .handControls {
   display: grid;
-  width: clamp(140px, 22vw, 184px);
-  grid-template-columns: repeat(3, minmax(44px, 1fr));
-  gap: 8px 4px;
+  width: clamp(144px, calc(var(--view-width) * 0.26), 224px);
+  grid-template-columns: minmax(44px, 1.6fr) minmax(44px, 1fr);
+  gap: 8px 6px;
 }
+.handControls[data-hand="right"] { grid-template-columns: minmax(44px, 1fr) minmax(44px, 1.6fr); }
 .direction { grid-column: 1 / -1; height: 48px; }
-.speed { border-radius: 12px; font-size: 20px; line-height: 1; }
+.speed { height: 48px; align-self: center; border-radius: 12px; font-size: 20px; line-height: 1; }
 .speed small { display: block; margin-top: 2px; font-size: 9px; font-weight: 500; }
-.jump { background: rgb(190 242 100 / 22%); color: #d9f99d; font-size: 15px; }
-.jump[data-pressed="true"] { background: rgb(190 242 100 / 40%); color: #ecfccb; }
+.jump { height: 72px; border-width: 2px; border-radius: 24px; background: rgb(190 242 100 / 24%); font-size: 18px; }
+.jump[data-pressed="true"] { background: rgb(190 242 100 / 42%); }
 
 @media (max-width: 1024px), (pointer: coarse) {
-  .stage { --controls-height: 100px; --controls-gap: 8px; }
+  .stage { padding: 0; }
+  .console { width: 100%; height: 100%; }
+  /* Limit the game independently; controls stay at the device viewport edges. */
+  .surface { width: min(100%, calc(var(--view-height) * 21 / 9)); height: 100%; aspect-ratio: auto; border-radius: 0; box-shadow: none; }
+  .hudTop {
+    padding-top: var(--inset-top);
+    padding-right: var(--inset-right);
+    padding-left: var(--inset-left);
+  }
   .controls {
+    position: absolute;
+    z-index: 10;
+    left: var(--inset-left);
+    right: var(--inset-right);
+    bottom: var(--inset-bottom);
     display: flex;
-    width: 100%;
-    height: var(--controls-height);
     justify-content: space-between;
     gap: 8px;
+    pointer-events: none;
   }
   .desktopHint { display: none; }
 }

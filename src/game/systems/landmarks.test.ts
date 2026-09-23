@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { GAME_SIZE, LANDMARK_CONFIG, PLAYER_CONFIG, RUN_CONFIG } from "../config/constants.ts";
+import { getViewportHeight } from "../config/viewport.ts";
 import { LANDMARKS, isLandmarkClearDistance } from "../data/landmarks.ts";
 import type { GameInputState } from "../input/input.types.ts";
 import { formatDistance } from "../utils/formatDistance.ts";
@@ -16,6 +17,9 @@ const neutral: GameInputState = {
   left: false, right: false, accelerate: false, brake: false, horizontalAxis: 0, verticalAxis: 0,
   jump: false, jumpPressed: false, jumpReleased: false,
 };
+const firstDestination = LANDMARKS[0];
+const firstDestinationWorld = firstDestination.distance * RUN_CONFIG.unitsPerMeter;
+const finalDestination = LANDMARKS[LANDMARKS.length - 1];
 
 function harness() {
   let visible: string | null = null;
@@ -33,16 +37,17 @@ function harness() {
   return { system, arrived, get visible() { return visible; }, get alpha() { return alpha; } };
 }
 
-function approachFirst(run: RunSystem, fps: number, targetWorld = 5990) {
-  for (let frame = 0; frame < fps * 60 && run.player.state.distanceTravelled < targetWorld; frame++) {
+function approachFirst(run: RunSystem, fps: number, targetWorld = firstDestinationWorld - 10) {
+  const frameLimit = Math.ceil(targetWorld / run.player.state.currentSpeed * fps) + fps;
+  for (let frame = 0; frame < frameLimit && run.player.state.distanceTravelled < targetWorld; frame++) {
     // Isolate the arrival from earlier obstacles, while retaining real movement/spawning.
     run.obstacles.boxes.length = 0;
     run.update(neutral, 1000 / fps);
   }
 }
 
-test("ten destinations have longer intervals and valid unchanged PNG artwork frames", () => {
-  assert.deepEqual(LANDMARKS.map(item => item.distance), [600, 1400, 2400, 4000, 6000, 8000, 10000, 13000, 16000, 20000]);
+test("ten destinations are spaced every 10km through 100km with valid unchanged PNG artwork frames", () => {
+  assert.deepEqual(LANDMARKS.map(item => item.distance), [10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000]);
   assert.equal(new Set(LANDMARKS.map(item => item.assetKey)).size, 10);
   for (const landmark of LANDMARKS) {
     assert.ok(landmark.approachDistance >= 300);
@@ -57,9 +62,9 @@ test("ten destinations have longer intervals and valid unchanged PNG artwork fra
 test("every destination approaches centrally, remains for celebration, then clears once", () => {
   const h = harness();
   const projection = new PerspectiveSystem();
-  assert.deepEqual(h.system.snapshot(), { next: { name: "기상 관측 표지", distanceRemaining: 600 }, arrival: null });
+  assert.deepEqual(h.system.snapshot(), { next: { name: firstDestination.name, distanceRemaining: firstDestination.distance }, arrival: null });
   h.system.update(50);
-  assert.equal(h.system.snapshot().next?.distanceRemaining, 550);
+  assert.equal(h.system.snapshot().next?.distanceRemaining, firstDestination.distance - 50);
   for (const landmark of LANDMARKS) {
     const start = landmark.distance - landmark.approachDistance;
     h.system.update(start - 0.001);
@@ -104,13 +109,14 @@ test("every destination approaches centrally, remains for celebration, then clea
     assert.equal(h.arrived.length, arrivals);
   }
   assert.deepEqual(h.arrived, LANDMARKS.map(item => item.id));
-  h.system.update(25000);
+  h.system.update(finalDestination.distance + 5000);
   assert.deepEqual(h.system.snapshot(), { next: null, arrival: null });
 });
 
 test("pre-spawned rows leave the approach and departure corridor empty for all destinations", () => {
   const obstacles = new ObstacleSystem(() => 0.5);
-  for (let distance = 0; distance <= 203000; distance += 80) {
+  const endWorld = (finalDestination.distance + 300) * RUN_CONFIG.unitsPerMeter;
+  for (let distance = 0; distance <= endWorld; distance += 80) {
     obstacles.update(distance);
     assert.ok(obstacles.boxes.every(box => !isLandmarkClearDistance(box.distance / RUN_CONFIG.unitsPerMeter)));
     for (const landmark of LANDMARKS) {
@@ -128,11 +134,26 @@ test("pre-spawned rows leave the approach and departure corridor empty for all d
   }
 });
 
+test("landmark art stays below the HUD and inside the scene at mobile aspect ratios", () => {
+  for (const [width, height] of [[844, 390], [1024, 320], [768, 1024], [320, 360]]) {
+    const projection = new PerspectiveSystem(getViewportHeight(width, height));
+    for (const landmark of LANDMARKS) {
+      for (const remaining of [landmark.approachDistance, landmark.approachDistance / 2, 0]) {
+        const point = projectLandmark(projection, landmark, remaining);
+        assert.ok(point.y - point.scale * landmark.assetFrame[3] >= 80 - 1e-9);
+        assert.ok(point.y < projection.contactY);
+        assert.ok(point.x - point.scale * landmark.assetFrame[2] / 2 >= 0);
+        assert.ok(point.x + point.scale * landmark.assetFrame[2] / 2 <= GAME_SIZE.width);
+      }
+    }
+  }
+});
+
 test("30/60/144 FPS stop at exact meters, suppress gameplay for 2.5s, and resume the selected speed", () => {
   const selectedSpeed = PLAYER_CONFIG.baseSpeed + 10 * PLAYER_CONFIG.speedStep;
   for (const fps of [30, 60, 144]) {
     const h = harness();
-    const run = new RunSystem(900, () => 0.5, h.system);
+    const run = new RunSystem({ distance: 900, averageSpeed: null }, () => 0.5, h.system);
     for (let i = 0; i < 10; i++) {
       run.player.update(neutral, 0);
       run.player.update({ ...neutral, verticalAxis: -1 }, 0);
@@ -142,39 +163,43 @@ test("30/60/144 FPS stop at exact meters, suppress gameplay for 2.5s, and resume
       run.update({ ...neutral, horizontalAxis: 1, jumpPressed: true }, 1000 / fps);
     }
     assert.equal(run.status, "celebrating");
-    assert.equal(run.player.state.distanceTravelled, 6000);
+    assert.equal(run.player.state.distanceTravelled, firstDestinationWorld);
     assert.equal(run.player.state.currentSpeed, 0);
     assert.equal(run.player.state.jumpPhase, "grounded");
     assert.equal(run.player.state.selectedSpeed, selectedSpeed);
     assert.equal(run.snapshot(false, true).speed, 0);
-    assert.ok(Math.abs(run.elapsedSeconds - 6000 / selectedSpeed) < 1e-8);
+    assert.ok(Math.abs(run.elapsedSeconds - firstDestinationWorld / selectedSpeed) < 1e-8);
     const frozen = { ...run.player.state };
     const frozenTime = run.elapsedSeconds;
+    const frozenAverage = run.averageSpeed;
+    assert.ok(Math.abs(frozenAverage - selectedSpeed / RUN_CONFIG.unitsPerMeter) < 1e-8);
     const ticks = Math.round(fps * LANDMARK_CONFIG.celebrationSeconds);
     for (let i = 0; i < ticks - 1; i++) {
       run.update({ ...neutral, horizontalAxis: -1, verticalAxis: 1, jumpPressed: true }, 1000 / fps);
       assert.deepEqual(run.player.state, frozen);
       assert.equal(run.elapsedSeconds, frozenTime);
+      assert.equal(run.averageSpeed, frozenAverage);
       assert.equal(run.status, "celebrating");
     }
     run.update(neutral, 1000 / fps);
     assert.equal(run.status, "running");
-    assert.equal(run.player.state.distanceTravelled, 6000);
+    assert.equal(run.player.state.distanceTravelled, firstDestinationWorld);
     assert.equal(run.player.state.currentSpeed, selectedSpeed);
     assert.equal(run.snapshot(false, true).speed, selectedSpeed / RUN_CONFIG.unitsPerMeter);
+    assert.equal(run.averageSpeed, frozenAverage);
     assert.equal(run.player.state.courseX, 0);
     assert.equal(h.visible, null);
-    assert.equal(h.system.next?.distance, 1400);
-    assert.equal(run.bestDistance, 900);
+    assert.equal(h.system.next?.distance, LANDMARKS[1].distance);
+    assert.equal(run.bestRecord.distance, 900);
     run.update(neutral, 1000 / fps);
-    assert.ok(run.player.state.distanceTravelled > 6000);
+    assert.ok(run.player.state.distanceTravelled > firstDestinationWorld);
     assert.deepEqual(h.arrived, ["weather-marker"]);
   }
 });
 
 test("pause, invalid time and long frame gaps cannot skip the celebration", () => {
   const run = new RunSystem();
-  approachFirst(run, 60, 6000);
+  approachFirst(run, 60, firstDestinationWorld);
   const frozen = { ...run.player.state };
   for (const delta of [0, NaN, Infinity, -1]) run.update(neutral, delta);
   assert.equal(run.landmarks.celebrationElapsedSeconds, 0);
@@ -185,24 +210,24 @@ test("pause, invalid time and long frame gaps cannot skip the celebration", () =
 });
 
 test("collision before or exactly at arrival wins, without an arrival callback or record inflation", () => {
-  for (const contactWorld of [5995, 6000]) {
+  for (const contactWorld of [firstDestinationWorld - 5, firstDestinationWorld]) {
     const h = harness();
-    const run = new RunSystem(0, () => 0.5, h.system);
+    const run = new RunSystem(undefined, () => 0.5, h.system);
     approachFirst(run, 60);
     run.obstacles.boxes.push({ id: -1, courseX: 0, distance: contactWorld + RUN_CONFIG.collisionHalfDepth, color: 0 });
     for (let frame = 0; frame < 60; frame++) run.update(neutral, 1000 / 60);
     assert.equal(run.status, "gameover");
     assert.equal(run.player.state.distanceTravelled, contactWorld);
-    assert.equal(run.bestDistance, Math.floor(contactWorld / RUN_CONFIG.unitsPerMeter));
+    assert.equal(run.bestRecord.distance, Math.floor(contactWorld / RUN_CONFIG.unitsPerMeter));
     assert.equal(h.arrived.length, 0);
     assert.equal(h.system.isCelebrating, false);
   }
 });
 
 test("restart clears approaching and celebrating art and starts from the first destination", () => {
-  for (const distance of [400, 600]) {
+  for (const distance of [firstDestination.distance - firstDestination.approachDistance / 2, firstDestination.distance]) {
     const h = harness();
-    const run = new RunSystem(750, () => 0.5, h.system);
+    const run = new RunSystem({ distance: 750, averageSpeed: null }, () => 0.5, h.system);
     approachFirst(run, 60, distance * RUN_CONFIG.unitsPerMeter);
     assert.notEqual(h.visible, null);
     run.restart();
@@ -211,23 +236,25 @@ test("restart clears approaching and celebrating art and starts from the first d
     assert.equal(run.player.state.distanceTravelled, 0);
     assert.equal(run.player.state.selectedSpeed, PLAYER_CONFIG.baseSpeed);
     assert.equal(run.landmarks.celebrationElapsedSeconds, null);
-    assert.equal(run.landmarks.next?.distance, 600);
-    assert.equal(run.landmarks.snapshot().next?.distanceRemaining, 600);
-    assert.equal(run.bestDistance, 750);
+    assert.equal(run.landmarks.next?.distance, firstDestination.distance);
+    assert.equal(run.landmarks.snapshot().next?.distanceRemaining, firstDestination.distance);
+    assert.equal(run.bestRecord.distance, 750);
   }
 });
 
-test("all ten stops occur once and the run continues past the final 20km destination", () => {
+test("all ten stops occur once and the run continues past the final 100km destination", () => {
   const h = harness();
-  const run = new RunSystem(0, () => 0.5, h.system);
+  const run = new RunSystem(undefined, () => 0.5, h.system);
   run.player.update({ ...neutral, verticalAxis: -1 }, 0);
   run.player.update(neutral, 0);
   run.player.update({ ...neutral, verticalAxis: -1 }, 0);
-  for (let frame = 0; frame < 18000 && run.player.state.distanceTravelled < 210000; frame++) {
+  const finishWorld = (finalDestination.distance + 1000) * RUN_CONFIG.unitsPerMeter;
+  const frameLimit = Math.ceil((finishWorld / run.player.state.currentSpeed + LANDMARKS.length * LANDMARK_CONFIG.celebrationSeconds) / 0.05) + LANDMARKS.length;
+  for (let frame = 0; frame < frameLimit && run.player.state.distanceTravelled < finishWorld; frame++) {
     run.obstacles.boxes.length = 0;
     run.update(neutral, 50);
   }
-  assert.ok(run.player.state.distanceTravelled >= 210000);
+  assert.ok(run.player.state.distanceTravelled >= finishWorld);
   assert.equal(run.status, "running");
   assert.equal(run.landmarks.next, null);
   assert.equal(h.visible, null);

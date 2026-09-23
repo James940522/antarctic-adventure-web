@@ -8,6 +8,7 @@ export class CourseView {
   private readonly scene: Scene;
   private readonly projection: PerspectiveSystem;
   private readonly marks: GameObjects.Graphics;
+  private readonly ground: GameObjects.Graphics;
   private readonly views = new Map<number, { body: GameObjects.Container; border: GameObjects.Graphics }>();
   private readonly reducedMotion: boolean;
 
@@ -15,18 +16,24 @@ export class CourseView {
     this.scene = scene;
     this.projection = projection;
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const ground = scene.add.graphics().setDepth(1);
+    this.ground = scene.add.graphics().setDepth(1);
+    this.marks = scene.add.graphics().setDepth(2);
+    this.resize();
+  }
+
+  resize(): void {
+    const { ground, projection } = this;
+    ground.clear();
     const farLeft = projection.project(-1.1, RUN_CONFIG.viewDistance);
     const farRight = projection.project(1.1, RUN_CONFIG.viewDistance);
     const bottomLeft = projection.project(-1.1, -160);
     const bottomRight = projection.project(1.1, -160);
     ground.fillStyle(0xe6f4fa);
-    ground.fillTriangle(0, farLeft.y, farLeft.x, farLeft.y, 0, GAME_SIZE.height);
-    ground.fillTriangle(farRight.x, farRight.y, GAME_SIZE.width, farRight.y, GAME_SIZE.width, GAME_SIZE.height);
+    ground.fillTriangle(0, farLeft.y, farLeft.x, farLeft.y, 0, projection.height);
+    ground.fillTriangle(farRight.x, farRight.y, GAME_SIZE.width, farRight.y, GAME_SIZE.width, projection.height);
     ground.lineStyle(2, 0x91cadd, 0.7);
     ground.lineBetween(farLeft.x, farLeft.y, bottomLeft.x, bottomLeft.y);
     ground.lineBetween(farRight.x, farRight.y, bottomRight.x, bottomRight.y);
-    this.marks = scene.add.graphics().setDepth(2);
   }
 
   render(distance: number, elapsedSeconds: number, boxes: readonly BoxObstacle[]): void {

@@ -79,7 +79,8 @@ export class LandmarkSystem {
     this.celebrationTime = null;
   }
 
-  private render(): void {
+  // Redraw the current state after resizing, without advancing arrival timers.
+  render(): void {
     if (!this.active) return;
     const alpha = this.celebrationTime === null ? 1
       : Math.min(1, (LANDMARK_CONFIG.celebrationSeconds - this.celebrationTime) / LANDMARK_CONFIG.fadeSeconds);

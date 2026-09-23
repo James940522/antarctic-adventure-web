@@ -56,7 +56,8 @@ export const RUN_CONFIG = {
   reactionSeconds: 0.35,
   colors: [0xff3ab4, 0xdfff00, 0x00efd5, 0xb18aff, 0xff982f],
   hudRefreshMs: 100,
-  recordKey: "antarctic-adventure:best-distance:v1",
+  recordKey: "antarctic-adventure:best-run:v2",
+  legacyRecordKey: "antarctic-adventure:best-distance:v1",
 } as const;
 
 export const LANDMARK_CONFIG = {

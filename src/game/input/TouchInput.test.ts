@@ -150,6 +150,24 @@ test("pointer capture supports holding off-button and cancel releases only that 
   f.input.destroy();
 });
 
+test("a quick pointer jump survives release and lost capture while another finger keeps steering", () => {
+  const f = fixture();
+  const manager = new InputManager(idle(), idle(), f.input);
+  const player = new Player();
+  f.input.press(2, "left");
+  f.button.dataset.gameAction = "jump";
+  f.dispatch(f.target, "pointerdown", 1);
+  f.dispatch(f.window, "pointerup", 1);
+  f.dispatch(f.target, "lostpointercapture", 1);
+  player.update(manager.update(), 20);
+  assert.ok(player.state.jumpHeight > 0);
+  assert.ok(player.state.courseX < 0);
+  assert.equal(manager.state.jumpPressed, true);
+  assert.equal(manager.update().jumpPressed, false);
+  assert.equal(manager.state.left, true);
+  manager.destroy();
+});
+
 test("lost capture, resize, hidden document and blur leave no held input", () => {
   const f = fixture();
   for (const [target, event] of [[f.target, "lostpointercapture"], [f.window, "resize"], [f.window, "blur"], [f.document, "visibilitychange"]] as const) {

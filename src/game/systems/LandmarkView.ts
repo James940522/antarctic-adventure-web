@@ -12,10 +12,11 @@ export function projectLandmark(projection: PerspectiveSystem, landmark: Landmar
   );
   const size = LANDMARK_CONFIG.sizes[landmark.size];
   const [, , width, height] = landmark.assetFrame;
+  const maxHeight = Math.min(size.maxHeight, projection.contactY - LANDMARK_CONFIG.arrivalSetback - 80);
   return {
     ...point,
     y: point.y - LANDMARK_CONFIG.arrivalSetback * point.scale,
-    scale: point.scale * Math.min(size.width / width, size.maxHeight / height),
+    scale: point.scale * Math.min(size.width / width, Math.max(1, maxHeight) / height),
   };
 }
 

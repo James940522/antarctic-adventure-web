@@ -1,6 +1,7 @@
 import { PLAYER_CONFIG, RUN_CONFIG } from "../config/constants.ts";
 import { Player } from "../entities/Player.ts";
 import type { GameInputState } from "../input/input.types.ts";
+import type { RunRecord } from "../types/run-record.types.ts";
 import { firstCollision } from "./CollisionSystem.ts";
 import { boxesPerRow, ObstacleSystem } from "./ObstacleSystem.ts";
 import { LandmarkSystem } from "./LandmarkSystem.ts";
@@ -9,6 +10,8 @@ export type RunSnapshot = {
   status: "running" | "celebrating" | "gameover";
   distance: number;
   bestDistance: number;
+  averageSpeed: number; // Distance / active driving time, in m/s.
+  bestAverageSpeed: number | null;
   speed: number; // Display meters / second.
   boxesPerRow: number;
   newRecord: boolean;
@@ -21,13 +24,13 @@ export class RunSystem {
   obstacles: ObstacleSystem;
   readonly landmarks: LandmarkSystem;
   private ended = false;
-  bestDistance: number;
+  bestRecord: RunRecord;
   newRecord = false;
   elapsedSeconds = 0;
   private readonly random: () => number;
 
-  constructor(bestDistance = 0, random: () => number = Math.random, landmarks = new LandmarkSystem()) {
-    this.bestDistance = bestDistance;
+  constructor(bestRecord: RunRecord = { distance: 0, averageSpeed: null }, random: () => number = Math.random, landmarks = new LandmarkSystem()) {
+    this.bestRecord = { ...bestRecord };
     this.random = random;
     this.landmarks = landmarks;
     this.obstacles = new ObstacleSystem(random);
@@ -35,6 +38,11 @@ export class RunSystem {
 
   get status(): RunSnapshot["status"] {
     return this.ended ? "gameover" : this.landmarks.isCelebrating ? "celebrating" : "running";
+  }
+
+  get averageSpeed(): number {
+    return this.elapsedSeconds > 0
+      ? this.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter / this.elapsedSeconds : 0;
   }
 
   update(input: Readonly<GameInputState>, deltaMs: number): boolean {
@@ -60,8 +68,8 @@ export class RunSystem {
       this.elapsedSeconds += delta / 1000 * hit.fraction;
       this.ended = true;
       const distance = Math.floor(this.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter);
-      this.newRecord = distance > this.bestDistance;
-      this.bestDistance = Math.max(this.bestDistance, distance);
+      this.newRecord = distance > this.bestRecord.distance;
+      if (this.newRecord) this.bestRecord = { distance, averageSpeed: this.averageSpeed };
       return true;
     }
     if (arrivalFraction <= 1) {
@@ -89,8 +97,11 @@ export class RunSystem {
 
   snapshot(paused: boolean, inputActive: boolean): RunSnapshot {
     const distance = Math.floor(this.player.state.distanceTravelled / RUN_CONFIG.unitsPerMeter);
+    const averageSpeed = this.averageSpeed;
+    const best = distance > this.bestRecord.distance ? { distance, averageSpeed } : this.bestRecord;
     return {
-      status: this.status, distance, bestDistance: Math.max(this.bestDistance, distance),
+      status: this.status, distance, bestDistance: best.distance,
+      averageSpeed, bestAverageSpeed: best.averageSpeed,
       speed: this.player.state.currentSpeed / RUN_CONFIG.unitsPerMeter,
       boxesPerRow: boxesPerRow(this.player.state.distanceTravelled),
       newRecord: this.newRecord, paused, inputActive,

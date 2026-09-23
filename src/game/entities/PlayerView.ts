@@ -16,12 +16,11 @@ export class PlayerView {
   private readonly sparkles: GameObjects.Graphics;
   private readonly reducedMotion: boolean;
   private readonly projection: PerspectiveSystem;
-  private readonly groundY: number;
+  private get groundY(): number { return this.projection.contactY - 34; }
 
   constructor(scene: Scene, projection: PerspectiveSystem) {
     this.projection = projection;
     this.reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    this.groundY = projection.contactY - 34;
 
     this.shadow = scene.add.ellipse(0, 0, 76, 16, 0x86b5ca, 0.45);
     this.body = scene.add.container(0, 0);
@@ -73,6 +72,8 @@ export class PlayerView {
   }
 
   render(player: Readonly<PlayerState>, celebrationSeconds: number | null = null): void {
+    this.shadow.setDepth(this.projection.contactY - 1);
+    this.body.setDepth(this.projection.contactY + 1);
     if (celebrationSeconds !== null) {
       this.renderCelebration(player, celebrationSeconds);
       return;

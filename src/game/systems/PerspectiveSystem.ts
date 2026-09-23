@@ -1,9 +1,15 @@
 import { GAME_SIZE, PLAYER_VIEW, RUN_CONFIG, SCENE_LAYOUT } from "../config/constants.ts";
 
 export class PerspectiveSystem {
-  readonly horizonY = GAME_SIZE.height * SCENE_LAYOUT.horizonRatio;
-  readonly contactY = GAME_SIZE.height * SCENE_LAYOUT.playerYRatio + 34;
   readonly nearHalfWidth = GAME_SIZE.width / 2 - PLAYER_VIEW.screenMargin;
+  height: number;
+
+  constructor(height: number = GAME_SIZE.height) {
+    this.height = height;
+  }
+
+  get horizonY(): number { return this.height * SCENE_LAYOUT.horizonRatio; }
+  get contactY(): number { return this.height * SCENE_LAYOUT.playerYRatio + 34; }
 
   project(courseX: number, relativeDistance: number) {
     const depth = Math.max(0, Math.min(1.25, 1 - relativeDistance / RUN_CONFIG.viewDistance));

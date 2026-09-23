@@ -3,6 +3,7 @@ import { AUTO, Scale, type Types } from "phaser";
 import { BootScene } from "@/game/scenes/BootScene";
 import { GameScene } from "@/game/scenes/GameScene";
 import { GAME_SIZE } from "@/game/config/constants";
+import { getViewportHeight } from "@/game/config/viewport";
 
 export function createGameConfig(
   parent: HTMLElement,
@@ -13,6 +14,7 @@ export function createGameConfig(
     type: AUTO,
     parent,
     ...GAME_SIZE,
+    height: getViewportHeight(parent.clientWidth, parent.clientHeight),
     backgroundColor: "#62c1ec",
     banner: false,
     autoFocus: false,
@@ -20,7 +22,7 @@ export function createGameConfig(
     // Our adapters own input; keep Phaser's global keyboard capture disabled.
     input: { keyboard: false, mouse: false, touch: false, gamepad: false },
     scale: {
-      // Keep simulation at 960×540. CSS owns proportional sizing and rotation.
+      // Fixed course width, responsive scene height. CSS owns sizing and rotation.
       mode: Scale.NONE,
       autoCenter: Scale.NO_CENTER,
     },

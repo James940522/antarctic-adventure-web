@@ -1,4 +1,4 @@
-import { Scene, Scenes } from "phaser";
+import { Scene, Scenes, Scale, type GameObjects } from "phaser";
 
 import { GAME_EVENTS, RUN_CONFIG, SCENE_LAYOUT } from "@/game/config/constants";
 import { PlayerView } from "@/game/entities/PlayerView";
@@ -28,6 +28,8 @@ export class GameScene extends Scene {
   private courseView?: CourseView;
   private playerView?: PlayerView;
   private landmarks?: LandmarkSystem;
+  private projection?: PerspectiveSystem;
+  private scenery?: GameObjects.Graphics;
   private skipNextDelta = true;
   private nextHudRefresh = 0;
   private restartAt = 0;
@@ -42,7 +44,8 @@ export class GameScene extends Scene {
       this.setupInput();
       this.drawLandscape();
       this.records = new RecordStore();
-      const projection = new PerspectiveSystem();
+      const projection = new PerspectiveSystem(this.scale.height);
+      this.projection = projection;
       this.landmarks = new LandmarkSystem(new LandmarkView(this, projection), (landmark) => {
         this.game.events.emit(GAME_EVENTS.landmarkArrived, landmark);
         this.nextHudRefresh = 0;
@@ -51,6 +54,7 @@ export class GameScene extends Scene {
       this.courseView = new CourseView(this, projection);
       this.playerView = new PlayerView(this, projection);
       this.playerView.render(this.run.player.state);
+      this.scale.on(Scale.Events.RESIZE, this.resizeViewport, this);
       this.game.events.on(GAME_EVENTS.restart, this.restart, this);
       const debug = new URLSearchParams(window.location.search).get("debugInput");
       if (debug === "1") {
@@ -82,7 +86,10 @@ export class GameScene extends Scene {
       }
       if (ended) {
         this.controls.reset();
-        this.records?.save(this.run.bestDistance);
+        if (this.records) {
+          this.run.newRecord = this.records.save(this.run.bestRecord);
+          this.run.bestRecord = this.records.value;
+        }
         this.restartAt = time + 600;
         this.nextHudRefresh = 0;
       }
@@ -154,12 +161,14 @@ export class GameScene extends Scene {
       window?.removeEventListener("blur", onWindowBlur);
       document.removeEventListener("visibilitychange", onVisibility);
       controls.destroy();
+      this.scale.off(Scale.Events.RESIZE, this.resizeViewport, this);
       this.game.events.off(GAME_EVENTS.restart, this.restart, this);
       this.courseView?.reset();
       this.landmarks?.reset();
       this.controls = this.keyboard = this.gamepad = this.inputDebug = this.touch = undefined;
       this.run = this.playerView = this.courseView = this.records = undefined;
       this.landmarks = undefined;
+      this.projection = this.scenery = undefined;
       this.skipNextDelta = true;
       this.events.off(Scenes.Events.SHUTDOWN, cleanup);
       this.events.off(Scenes.Events.DESTROY, cleanup);
@@ -168,10 +177,20 @@ export class GameScene extends Scene {
     this.events.once(Scenes.Events.DESTROY, cleanup);
   }
 
+  private resizeViewport(): void {
+    if (!this.projection) return;
+    this.projection.height = this.scale.height;
+    this.drawLandscape();
+    this.courseView?.resize();
+    this.landmarks?.render();
+    this.controls?.reset();
+  }
+
   private drawLandscape(): void {
     const { width, height } = this.scale;
     const horizonY = Math.round(height * SCENE_LAYOUT.horizonRatio);
-    const scenery = this.add.graphics();
+    const scenery = this.scenery ??= this.add.graphics().setDepth(0);
+    scenery.clear();
 
     scenery.fillStyle(0x62c1ec);
     scenery.fillRect(0, 0, width, height);
