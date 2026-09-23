@@ -6,8 +6,12 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:webpack": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "next typegen && tsc --noEmit",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "qa": "pnpm check && pnpm build:webpack",
     "test": "node --conditions=react-server --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/components/game/*.test.ts src/game/input/*.test.ts src/game/entities/*.test.ts src/game/systems/*.test.ts src/server/*.test.ts"
   },
   "dependencies": {

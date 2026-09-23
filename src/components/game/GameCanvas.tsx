@@ -1,28 +1,30 @@
 "use client";
 
-import type { Game } from "phaser";
 import { useEffect, useRef, useState } from "react";
 
-import { GAME_EVENTS } from "@/game/config/constants";
 import { GameHud } from "@/components/game/GameHud";
 import { TouchControls } from "@/components/game/TouchControls";
 import { PauseOverlay } from "./PauseOverlay";
+import { startGameSession, type GameSession } from "./game-session";
 import styles from "./GameViewport.module.css";
 import type { GameSnapshot } from "@/game/types/game.types";
 import type { LocalPlayer } from "@/game/types/local-player.types";
 
 type LoadStatus = "loading" | "ready" | "error";
-// Shared across actual unmount/remount, including a quick Menu → Classic switch.
-let pendingTeardown: Promise<void> = Promise.resolve();
-
-export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, muted, onMute, player }: {
-  onMenu: () => void; onPlaybackChange: (playing: boolean) => void; onRestarted: () => void; muted: boolean; onMute: () => void;
+type GameCanvasProps = {
   player: LocalPlayer;
+  muted: boolean;
+  onMenu: () => void;
   onRanking: () => void;
-}) {
+  onPlaybackChange: (playing: boolean) => void;
+  onRestarted: () => void;
+  onMute: () => void;
+};
+
+export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, muted, onMute, player }: GameCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputTargetRef = useRef<HTMLElement>(null);
-  const gameRef = useRef<Game | undefined>(undefined);
+  const sessionRef = useRef<GameSession | null>(null);
   const [run, setRun] = useState<GameSnapshot | null>(null);
   const [status, setStatus] = useState<LoadStatus>("loading");
   const [attempt, setAttempt] = useState(0);
@@ -37,66 +39,21 @@ export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, m
     mount.className = "h-full w-full";
     container.append(mount);
 
-    let cancelled = false;
-    let failed = false;
-    let game: Game | undefined;
-    let bootTimeout: ReturnType<typeof setTimeout> | undefined;
-
-    const destroyGame = () => {
-      if (!game) return;
-      const retiringGame = game;
-      game = undefined;
-      if (gameRef.current === retiringGame) gameRef.current = undefined;
-
-      // Phaser destroys on its next frame. Wait before creating a replacement.
-      pendingTeardown = new Promise<void>((resolve) => {
-        retiringGame.events.once("destroy", () => resolve());
-        retiringGame.destroy(true, false);
-      });
-      retiringGame.canvas?.remove();
-    };
-
-    const onError = (error: unknown) => {
-      clearTimeout(bootTimeout);
-      if (cancelled || failed) return;
-      failed = true;
-      console.error("Failed to initialize Antarctic Adventure:", error);
-      setStatus("error");
-      destroyGame();
-    };
-
-    const initialize = async () => {
-      try {
-        const { createGame } = await import("@/game/create-game");
-        await pendingTeardown;
-        if (cancelled) return;
-
-        setStatus("loading");
-        bootTimeout = setTimeout(
-          () => onError(new Error("Game scene initialization timed out.")),
-          15_000,
-        );
-        game = createGame(mount, {
-          onReady: () => {
-            clearTimeout(bootTimeout);
-            if (!cancelled && !failed) setStatus("ready");
-          },
-          onError,
-          onSnapshot: (snapshot) => { if (!cancelled && !failed && snapshot) setRun(snapshot); },
-          onRestarted: () => { if (!cancelled && !failed) onRestarted(); },
-        }, inputTarget);
-        gameRef.current = game;
-      } catch (error) {
-        onError(error);
-      }
-    };
-
-    void initialize();
+    const session = startGameSession(mount, inputTarget, {
+      onReady: () => setStatus("ready"),
+      onError: error => {
+        console.error("Failed to initialize Antarctic Adventure:", error);
+        setStatus("error");
+        setRun(null);
+      },
+      onSnapshot: setRun,
+      onRestarted,
+    });
+    sessionRef.current = session;
 
     return () => {
-      cancelled = true;
-      clearTimeout(bootTimeout);
-      destroyGame();
+      session.destroy();
+      if (sessionRef.current === session) sessionRef.current = null;
       mount.remove();
     };
   }, [attempt, onRestarted]);
@@ -108,7 +65,7 @@ export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, m
   const playing = status === "ready" && Boolean(run) && !run?.paused && run?.status !== "gameover";
   useEffect(() => { onPlaybackChange(playing); }, [playing, onPlaybackChange]);
 
-  const resume = () => gameRef.current?.events.emit(GAME_EVENTS.pause, false);
+  const resume = () => sessionRef.current?.pause(false);
 
   return (
     <div className={styles.stage}>
@@ -135,18 +92,16 @@ export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, m
       <div className={styles.surface}>
       <div ref={containerRef} className={styles.mount} />
 
-      {status === "ready" && run && <GameHud run={run} player={player} onRanking={onRanking} onPause={() => gameRef.current?.events.emit(GAME_EVENTS.pause, true)} onMenu={onMenu} onRestart={() => {
-        gameRef.current?.events.emit(GAME_EVENTS.restart);
+      {status === "ready" && run && <GameHud run={run} player={player} onRanking={onRanking} onPause={() => sessionRef.current?.pause(true)} onMenu={onMenu} onRestart={() => {
+        sessionRef.current?.restart();
         inputTargetRef.current?.focus({ preventScroll: true });
       }} />}
 
       {status === "loading" && (
-        <p
-          role="status"
-          className="absolute inset-0 grid place-items-center text-sm text-slate-700"
-        >
-          남극으로 가는 중…
-        </p>
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-sm text-slate-700">
+          <p role="status">남극으로 가는 중…</p>
+          <button type="button" onClick={onMenu} className="rounded px-4 py-2 underline">메인 메뉴</button>
+        </div>
       )}
 
       {status === "error" && (
@@ -160,6 +115,7 @@ export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, m
             className="rounded bg-slate-800 px-4 py-2 text-sm text-white hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-slate-800"
             onClick={() => {
               setStatus("loading");
+              setRun(null);
               setAttempt((value) => value + 1);
             }}
           >

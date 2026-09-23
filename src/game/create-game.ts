@@ -5,7 +5,7 @@ import { getViewportHeight } from "@/game/config/viewport";
 import { createGameConfig } from "@/game/config/game-config";
 import type { GameSnapshot } from "@/game/types/game.types";
 
-type GameCallbacks = {
+export type GameCallbacks = {
   onReady: () => void;
   onError: (error: unknown) => void;
   onSnapshot: (snapshot: GameSnapshot) => void;
