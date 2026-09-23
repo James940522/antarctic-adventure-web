@@ -29,6 +29,7 @@ function isolatedRun(speed: number): RunSystem {
   Object.assign(run.player.state, { selectedSpeed: speed * RUN_CONFIG.unitsPerMeter });
   // These collision fixtures control every row, including beyond the initial view.
   run.obstacles.update = () => {};
+  run.items.update = () => {};
   return run;
 }
 

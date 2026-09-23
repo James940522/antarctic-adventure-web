@@ -3,19 +3,28 @@
 import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { BackgroundMusic } from "@/game/systems/BackgroundMusic";
 import { AudioPreferences } from "@/game/systems/AudioPreferences";
+import { LocalPlayerStore } from "@/game/systems/LocalPlayerStore";
+import type { LocalPlayer } from "@/game/types/local-player.types";
 import { GameCanvas } from "./GameCanvas";
 import { GameDialog } from "./GameDialog";
 import { MainMenu } from "./MainMenu";
+import { NicknameDialog } from "./NicknameDialog";
+import { RankingBoard } from "./RankingBoard";
 import { appReducer, INITIAL_APP_STATE } from "./menu-state";
 import styles from "./Menu.module.css";
 
 const audioPreferences = new AudioPreferences();
+const players = new LocalPlayerStore();
 const getServerMuted = () => undefined;
 
 export function GameShell() {
   const [app, dispatch] = useReducer(appReducer, INITIAL_APP_STATE);
   const soundPreference = useSyncExternalStore<boolean | null | undefined>(audioPreferences.subscribe, audioPreferences.getSnapshot, getServerMuted);
   const muted = soundPreference !== false;
+  const player = useSyncExternalStore<LocalPlayer | null | undefined>(players.subscribe, players.getSnapshot, getServerMuted);
+  const [editingNickname, setEditingNickname] = useState(false);
+  const [rankingOpen, setRankingOpen] = useState(false);
+  const [gameSession, setGameSession] = useState(0);
   const [gameAudible, setGameAudible] = useState(false);
   const audio = useRef<HTMLAudioElement>(null);
   const music = useRef<BackgroundMusic | null>(null);
@@ -23,6 +32,12 @@ export function GameShell() {
   const onRestarted = useCallback(() => music.current?.restartGame(), []);
   const onMenu = useCallback(() => { setGameAudible(false); dispatch({ type: "menu" }); }, []);
   const onMute = () => audioPreferences.setMuted(!audioPreferences.getSnapshot());
+  const openRanking = () => setRankingOpen(true);
+  const retryFromRanking = () => {
+    setRankingOpen(false); setGameAudible(false); setGameSession(value => value + 1);
+    music.current?.restartGame();
+    dispatch({ type: "select-mode", mode: "classic" });
+  };
 
   useEffect(() => {
     if (!audio.current) return;
@@ -57,10 +72,16 @@ export function GameShell() {
 
   return <>
     <audio ref={audio} preload="metadata" hidden aria-hidden="true" />
-    {app.screen === "menu" ? <MainMenu modal={app.modal} muted={muted} onMute={onMute}
-      onSelect={mode => { setGameAudible(false); dispatch({ type: "select-mode", mode }); }}
+    {app.screen === "menu" || !player ? <MainMenu modal={app.modal} muted={muted} onMute={onMute}
+      player={player ?? null} onNickname={() => setEditingNickname(true)} onRanking={openRanking}
+      onSelect={mode => { if (!player) return; setGameAudible(false); dispatch({ type: "select-mode", mode }); }}
       onDeveloper={() => dispatch({ type: "developer" })} onClose={() => dispatch({ type: "close-modal" })} />
-      : <GameCanvas onMenu={onMenu} onPlaybackChange={onPlaybackChange} onRestarted={onRestarted} muted={muted} onMute={onMute} />}
+      : <GameCanvas key={gameSession} player={player} onMenu={onMenu} onRanking={openRanking} onPlaybackChange={onPlaybackChange} onRestarted={onRestarted} muted={muted} onMute={onMute} />}
+    {rankingOpen && player && <RankingBoard player={player} onClose={() => setRankingOpen(false)}
+      onMenu={() => { setRankingOpen(false); onMenu(); }} onRetry={retryFromRanking} onNickname={() => setEditingNickname(true)} />}
+    {soundPreference !== undefined && soundPreference !== null && (player === null || editingNickname) &&
+      <NicknameDialog nickname={player?.nickname} onClose={() => setEditingNickname(false)}
+        onSave={nickname => { players.setNickname(nickname); setEditingNickname(false); }} />}
     {soundPreference === null && <GameDialog title="배경음악 선택" onClose={() => audioPreferences.setMuted(true)}>
       <p className={styles.dialogText}>음악과 함께 플레이할까요?<br />선택은 저장되며, 언제든 메뉴에서 바꿀 수 있어요.</p>
       <div className={styles.dialogActions}>

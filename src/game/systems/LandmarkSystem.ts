@@ -26,6 +26,7 @@ export class LandmarkSystem {
   }
 
   get next(): LandmarkDefinition | null { return LANDMARKS[this.nextIndex] ?? null; }
+  get completedCount(): number { return this.nextIndex; }
   get activeLandmark(): LandmarkDefinition | null { return this.active; }
   get celebrationElapsedSeconds(): number | null { return this.celebrationTime; }
   get isCelebrating(): boolean { return this.celebrationTime !== null; }

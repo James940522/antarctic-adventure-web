@@ -11,6 +11,7 @@ import { RunSystem } from "@/game/systems/RunSystem";
 import { RecordStore } from "@/game/systems/RecordStore";
 import { PerspectiveSystem } from "@/game/systems/PerspectiveSystem";
 import { CourseView } from "@/game/systems/CourseView";
+import { ItemView } from "@/game/systems/ItemView";
 import { LandmarkSystem } from "@/game/systems/LandmarkSystem";
 import { LandmarkView } from "@/game/systems/LandmarkView";
 import type { GameSnapshot } from "@/game/types/game.types";
@@ -26,6 +27,7 @@ export class GameScene extends Scene {
   private run?: RunSystem;
   private records?: RecordStore;
   private courseView?: CourseView;
+  private itemView?: ItemView;
   private playerView?: PlayerView;
   private landmarks?: LandmarkSystem;
   private projection?: PerspectiveSystem;
@@ -52,6 +54,7 @@ export class GameScene extends Scene {
       });
       this.run = new RunSystem(this.records.value, Math.random, this.landmarks);
       this.courseView = new CourseView(this, projection);
+      this.itemView = new ItemView(this, projection);
       this.playerView = new PlayerView(this, projection);
       this.playerView.render(this.run.player.state);
       this.scale.on(Scale.Events.RESIZE, this.resizeViewport, this);
@@ -101,7 +104,8 @@ export class GameScene extends Scene {
       this.skipNextDelta = true;
     }
     this.courseView?.render(this.run.player.state.distanceTravelled, this.run.obstacles.items);
-    this.playerView?.render(this.run.player.state, this.landmarks?.celebrationElapsedSeconds ?? null);
+    this.itemView?.render(this.run.player.state.distanceTravelled, this.run.items.items, this.run.effects.ghostSeconds);
+    this.playerView?.render(this.run.player.state, this.landmarks?.celebrationElapsedSeconds ?? null, this.run.effects.ghostSeconds);
     this.inputDebug?.update(time, input, inputActive, this.gamepad.status, this.run.player.state, this.landmarks);
     if (time >= this.nextHudRefresh) {
       this.nextHudRefresh = time + RUN_CONFIG.hudRefreshMs;
@@ -127,6 +131,7 @@ export class GameScene extends Scene {
     this.run.restart();
     this.controls?.reset();
     this.courseView?.reset();
+    this.itemView?.reset();
     this.skipNextDelta = true;
     this.nextHudRefresh = 0;
     this.game.events.emit(GAME_EVENTS.restarted);
@@ -178,9 +183,11 @@ export class GameScene extends Scene {
       this.game.events.off(GAME_EVENTS.restart, this.restart, this);
       this.game.events.off(GAME_EVENTS.pause, this.setPaused, this);
       this.courseView?.reset();
+      this.itemView?.destroy();
       this.landmarks?.reset();
       this.controls = this.keyboard = this.gamepad = this.inputDebug = this.touch = undefined;
       this.run = this.playerView = this.courseView = this.records = undefined;
+      this.itemView = undefined;
       this.landmarks = undefined;
       this.projection = this.scenery = undefined;
       this.skipNextDelta = true;

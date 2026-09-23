@@ -9,13 +9,16 @@ import { TouchControls } from "@/components/game/TouchControls";
 import { PauseOverlay } from "./PauseOverlay";
 import styles from "./GameViewport.module.css";
 import type { GameSnapshot } from "@/game/types/game.types";
+import type { LocalPlayer } from "@/game/types/local-player.types";
 
 type LoadStatus = "loading" | "ready" | "error";
 // Shared across actual unmount/remount, including a quick Menu → Classic switch.
 let pendingTeardown: Promise<void> = Promise.resolve();
 
-export function GameCanvas({ onMenu, onPlaybackChange, onRestarted, muted, onMute }: {
+export function GameCanvas({ onMenu, onRanking, onPlaybackChange, onRestarted, muted, onMute, player }: {
   onMenu: () => void; onPlaybackChange: (playing: boolean) => void; onRestarted: () => void; muted: boolean; onMute: () => void;
+  player: LocalPlayer;
+  onRanking: () => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const inputTargetRef = useRef<HTMLElement>(null);
@@ -132,7 +135,7 @@ export function GameCanvas({ onMenu, onPlaybackChange, onRestarted, muted, onMut
       <div className={styles.surface}>
       <div ref={containerRef} className={styles.mount} />
 
-      {status === "ready" && run && <GameHud run={run} onPause={() => gameRef.current?.events.emit(GAME_EVENTS.pause, true)} onMenu={onMenu} onRestart={() => {
+      {status === "ready" && run && <GameHud run={run} player={player} onRanking={onRanking} onPause={() => gameRef.current?.events.emit(GAME_EVENTS.pause, true)} onMenu={onMenu} onRestart={() => {
         gameRef.current?.events.emit(GAME_EVENTS.restart);
         inputTargetRef.current?.focus({ preventScroll: true });
       }} />}
@@ -172,7 +175,7 @@ export function GameCanvas({ onMenu, onPlaybackChange, onRestarted, muted, onMut
         </p>
       </noscript>
       </div>
-      <TouchControls disabled={status !== "ready" || run?.status !== "running" || run.paused} />
+      {run?.status !== "gameover" && <TouchControls disabled={status !== "ready" || run?.status !== "running" || run.paused} />}
       {run?.pauseMenuOpen && <PauseOverlay onResume={resume} onMenu={onMenu} muted={muted} onMute={onMute} />}
     </section>
     </div>

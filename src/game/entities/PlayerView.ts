@@ -3,6 +3,7 @@ import type { GameObjects, Scene } from "phaser";
 import { PLAYER_CONFIG, PLAYER_VIEW } from "@/game/config/constants";
 import type { PlayerState } from "@/game/entities/Player";
 import { PerspectiveSystem } from "@/game/systems/PerspectiveSystem";
+import { ghostOpacity } from "@/game/systems/ItemEffectSystem";
 
 export class PlayerView {
   private readonly body: GameObjects.Container;
@@ -71,7 +72,8 @@ export class PlayerView {
     this.body.add([this.leftFoot, this.rightFoot, this.leftFlipper, this.rightFlipper, back, front, this.sparkles]);
   }
 
-  render(player: Readonly<PlayerState>, celebrationSeconds: number | null = null): void {
+  render(player: Readonly<PlayerState>, celebrationSeconds: number | null = null, ghostSeconds = 0): void {
+    this.body.setAlpha(ghostOpacity(ghostSeconds, this.reducedMotion));
     this.shadow.setDepth(this.projection.contactY - 1);
     this.body.setDepth(this.projection.contactY + 1);
     if (celebrationSeconds !== null) {

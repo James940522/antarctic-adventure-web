@@ -55,6 +55,10 @@ export const RUN_CONFIG = {
   legacyRecordKey: "antarctic-adventure:best-distance:v1",
 } as const;
 
+export const SCORE_CONFIG = {
+  referenceSpeed: 14, // m/s: 1m at the starting speed is worth 1 point.
+} as const;
+
 export const LANDMARK_CONFIG = {
   frameName: "artwork",
   celebrationSeconds: 2.5,

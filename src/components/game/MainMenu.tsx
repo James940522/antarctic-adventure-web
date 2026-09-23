@@ -1,9 +1,11 @@
 import { DEVELOPER, type GameMode, type MenuModal } from "./menu-state";
 import { GameDialog } from "./GameDialog";
 import styles from "./Menu.module.css";
+import type { LocalPlayer } from "@/game/types/local-player.types";
 
-export function MainMenu({ modal, onSelect, onDeveloper, onClose, muted, onMute }: {
+export function MainMenu({ modal, onSelect, onDeveloper, onClose, muted, onMute, player, onNickname, onRanking }: {
   modal: MenuModal; onSelect: (mode: GameMode) => void; onDeveloper: () => void; onClose: () => void; muted: boolean; onMute: () => void;
+  player: LocalPlayer | null; onNickname: () => void; onRanking: () => void;
 }) {
   return <section className={styles.menu} aria-label="메인 메뉴">
     <div className={styles.menuContent}>
@@ -11,11 +13,15 @@ export function MainMenu({ modal, onSelect, onDeveloper, onClose, muted, onMute 
       <h1 className={styles.title}>WHITE HORIZON<span>ANTARCTIC RUN</span></h1>
       <p className={styles.intro}>하얀 대륙 위에, 나만의 기록을 남기세요.</p>
       <div className={styles.menuActions}>
-        <button type="button" className={styles.primary} onClick={() => onSelect("classic")}><strong>클래식 버전</strong><small>CLASSIC MODE <span aria-hidden="true">→</span></small></button>
-        <button type="button" className={styles.secondary} onClick={() => onSelect("gaze")}><strong>시선추적 버전</strong><small>개발중 · COMING SOON</small></button>
+        <button type="button" disabled={!player} className={styles.primary} onClick={() => onSelect("classic")}><strong>클래식 버전</strong><small>CLASSIC MODE <span aria-hidden="true">→</span></small></button>
+        <button type="button" disabled={!player} className={styles.secondary} onClick={onRanking}>랭킹 보드</button>
+        <button type="button" disabled={!player} className={styles.secondary} onClick={() => onSelect("gaze")}><strong>시선추적 버전</strong><small>개발중 · COMING SOON</small></button>
       </div>
       <p className={styles.help}>← → 이동 · ↑ ↓ 속도 · SPACE 점프<br />ESC / 패드 Menu 일시정지 · 모바일 터치 지원</p>
-      <button type="button" className={styles.developerButton} onClick={onDeveloper}>DEVELOPER <span>James</span></button>
+      <div className={styles.menuFooter}>
+        <button type="button" className={styles.developerButton} onClick={onNickname} aria-label="닉네임 변경">닉네임 변경 <span>{player?.nickname ?? "탐험가"}</span></button>
+        <button type="button" className={styles.developerButton} onClick={onDeveloper}>DEVELOPER <span>James</span></button>
+      </div>
     </div>
     <button type="button" className={styles.soundButton} aria-label={muted ? "BGM 소리 켜기" : "BGM 소리 끄기"} aria-pressed={!muted} onClick={onMute}>♪ {muted ? "OFF" : "ON"}</button>
     {modal === "development" && <GameDialog title="시선추적 버전" onClose={onClose}>
